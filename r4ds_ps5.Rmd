@@ -1,0 +1,313 @@
+---
+title: "r4ds_ps5"
+author: "Annie Gao"
+date: "2/18/2018"
+output: html_document
+---
+
+# Prelim Questions
+## 1 
+I worked with Umer Naeem.
+
+## 2
+I spent more than 30 hours on this.
+
+# 1 R4DS Chapter 13
+
+```{r setup, include=FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(nycflights13)
+```
+
+## 1
+To draw the route each plane flies from its origin to its destination, we would need the plane carrier, flight number, origin, and destination. These variables can be found from the nycflights13::flights dataframe. We would also need the longitude and latitude coordinate variables from the airports dataframe. We would need to combine the flights and airports tables.
+
+## 2
+```{r}
+knitr::include_graphics("question2.jpg")
+```
+
+The weather dataframe has the variable origin and the dataframe airports has the variable faa which is the same as the origin variable.
+
+## 3
+```{r}
+flights1 <- flights %>% 
+  group_by(dest) %>%
+  summarise(avg_delay = mean(arr_delay, na.rm = TRUE))
+
+avg_delay_dest <- inner_join(airports, flights1, 
+                             by = c("faa" = "dest"))
+
+avg_delay_dest %>%
+  ggplot(mapping = aes(x = lon, y = lat, color = avg_delay)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap()
+```
+
+## 4
+```{r}
+origin_dest_coord <- flights %>% 
+  left_join(airports, by = c("origin" = "faa")) %>%
+  left_join(airports, by = c("dest" = "faa"))
+```
+
+name.x is the origin name matched on faa from the flights and airport dataframes.
+name.y is the destination name matched on faa from the flights and airport dataframes.
+Both have longitude and latitude coordinates.
+
+## 5
+```{r}
+max(flights$year)
+min(flights$year)
+
+age_delays <- flights %>% inner_join(planes, by = "tailnum") %>% 
+  #year.y is now year plane was made
+  mutate(plane_age = 2013 - year.y) %>%
+  group_by(plane_age) %>%
+  summarise(avg_delay_age = mean(dep_delay, na.rm = TRUE)) %>%
+  filter(!is.na(plane_age))
+
+age_delays %>% 
+  ggplot(mapping = aes(x = plane_age, y = avg_delay_age)) +
+  geom_line()
+```
+
+The flights all occurred in 2013 as the latest year. There does not seem to be a relationship between plane age and average delays. It almost seems that newer planes have longer average delays but older planes, in use between 35 to 40 years, also have longer average delays. There is a sharp dip in length of average delays in plane between 40 to 50 years in use.
+
+## 6
+```{r}
+#explore by visibility
+weather_delays_visib <- flights %>% 
+  inner_join(weather, by = c("year", "month", "day", "hour")) %>%
+  group_by(visib) %>%
+  summarise(avg_delay_visib = mean(dep_delay, na.rm = TRUE))
+
+weather_delays_visib %>%
+  ggplot(mapping = aes(x = visib, y = avg_delay_visib)) +
+  geom_line()
+
+#explore by precipitation
+weather_delays_precip <- flights %>% 
+  inner_join(weather, by = c("year", "month", "day", "hour")) %>%
+  group_by(precip) %>%
+  summarise(avg_delay_precip = mean(dep_delay, na.rm = TRUE)) %>%
+  subset(precip < .40)
+
+weather_delays_precip %>% 
+  ggplot(mapping = aes(x = precip, y = avg_delay_precip)) +
+  geom_line() +
+  geom_point()
+
+#explore by windspeed
+weather_delays_windspd <- flights %>% 
+  inner_join(weather, by = c("year", "month", "day", "hour")) %>%
+  group_by(wind_speed) %>%
+  summarise(avg_delay_windspd = mean(dep_delay, na.rm = TRUE)) %>%
+  filter(!is.na(wind_speed)) %>%
+  subset(wind_speed < 45)
+
+weather_delays_windspd %>% 
+  ggplot(mapping = aes(x = wind_speed, y = avg_delay_windspd)) +
+  geom_line()
+```
+
+The lower the visibility, the higher the average delay. There does not seem to be a relationship between precipitation and average delay. However, there seems to be more variation in average delay time as precipitation increases. For wind speed, there seems to be a positive relationship where the higher the wind speed, the higher the average delay.
+
+## 7
+```{r}
+flight_june_13 <- flights %>% 
+  group_by(dest) %>%
+  filter(year == 2013 & month == 6 & day == 13) %>%
+  summarise(avg_delay_june = mean(arr_delay, na.rm = TRUE)) %>%
+  subset(!is.nan(avg_delay_june))
+
+avg_delay_june <- inner_join(flight_june_13, airports, 
+                             by = c("dest" = "faa"))
+
+avg_delay_june %>%
+  ggplot(mapping = aes(x = lon, y = lat, color = avg_delay_june)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap()
+```
+
+There was the Derecho Series where windstorm occurred across areas of the East Coast and moved across areas of the Midwest. The map created above confirms this occurrence as we see higher delays all along the East Coast onto the Midwest. This also confirms the previous exploration of weather conditions' relationship with delays, seeing that delays are highly associated with high wind speeds.
+
+## 8
+```{r}
+no_tailnum <- flights %>% anti_join(planes, by = "tailnum") %>%
+  count(carrier) %>%
+  arrange(desc(n))
+```
+
+Flights that have missing tail numbers means that the carrier didnt report the plane's tail number. Tail numbers that dont have a matching record in planes largely have the same two carriers in common. The missing tailnums are mostly associated with carriers MQ and AA.
+
+## 9
+```{r}
+explore <- anti_join(flights, airports, by = c("dest" = "faa"))
+explore1 <- anti_join(airports, flights, by = c("faa" = "dest"))
+```
+
+The first anti_join statement gives the flights and associated info in which destination airports in flights do not match the faa names in airports. These flights do not go to a faa labeled airport. The second anti_join statement gives the faa airport names that do not match destinations in flights. These airports dont have flights from the flights dataframe that fly to them.
+
+## 10
+```{r}
+flights %>%
+  group_by(tailnum) %>%
+  summarise(no_carriers = n_distinct(carrier)) %>%
+  filter(no_carriers > 1, !is.na(tailnum))
+```
+
+It does not seem that each plane is flown by a single airline. It seems that there are at least 17 planes that changed carriers, seen by the count of more than 1 distinct carriers associated with each tail number. 
+
+# 2 R4DS Chapter 14 
+```{r}
+#install.packages("stringr")
+library(stringr)
+```
+
+## 1
+```{r}
+randomstring <- "amnie"
+midcount <- ceiling(str_length(randomstring)/2)
+str_sub(randomstring, start = midcount, end = midcount)
+
+randomstring1 <- "amnieg"
+midcount1 <- ceiling(str_length(randomstring)/2)
+str_sub(randomstring, start = midcount1, end = midcount1)
+```
+
+If the string has an even number of characters, it will extract the first of the two characters in the middle of the string. In this case, it extracts "n" and not "i".
+
+## 2
+```{r}
+vec <- c("a", "b", "c")
+str_c(str_c(vec[-length(vec)], collapse = ", "), vec[length(vec)], sep = " and ")
+```
+
+```{r}
+#extra credit
+combine_funct <- function(my_vec){
+  if (length(my_vec) > 1) {
+    str_c(str_c(my_vec[-length(my_vec)], collapse = ", "), 
+          my_vec[length(my_vec)], sep = " and ")} 
+  else {my_vec}
+}
+
+#examples
+vec1 <- c()
+vec2 <- c("a")
+vec3 <- c("n", "i")
+
+combine_funct(vec1)
+combine_funct(vec2)
+combine_funct(vec3)
+```
+
+If the vector has length 0, function returns NULL. If the length of the vector is 1, it just returns the character as a string of length 1. If the it has legnth of more than 1, it is separated by "and".
+
+## 3
+```{r}
+mystr <- "cience"
+
+#examples
+str_view(mystr, "cienc")
+str_view(mystr, ".cien.")
+str_view(mystr, "^cienc$")
+```
+
+## 4
+```{r}
+another_str <- "Dean Baicker c/o Tanya Hines"
+
+str_view(another_str, "c/o")
+```
+
+## 5
+```{r}
+stringr::words
+
+# 1
+sum(str_detect(stringr::words, "^y"))
+
+# 2
+sum(str_detect(stringr::words, "x$"))
+
+# 3
+sum(str_detect(stringr::words, "^...$"))
+
+# 4
+sum(str_detect(stringr::words, "......*"))
+```
+
+## 6
+```{r, error = FALSE, warning = FALSE}
+# 1
+sum(str_detect(stringr::words, "^[aeiou]"))
+
+cases1 <- c("qwrt", "dfgh", "yrtui", "annie")
+#pass case
+str_detect(cases1, "^[aeiou]")
+#fail cases
+str_detect(cases1, "^aeiou")
+str_detect(cases1, "^(aeiou)")
+
+# 2
+sum(str_detect(stringr::words, ".*")) - sum(str_detect(stringr::words, "[aeiou]"))
+
+cases2 <- c("qwrt", "dfgh", "yrtui", "annie")
+#pass case
+str_detect(cases2, ".*") - str_detect(cases2, "[aeiou]")
+#fail cases
+str_detect(cases2, ".*") - str_detect(cases2, "^aeiou")
+str_detect(cases2, ".*") - str_detect(cases2, "aeiou")
+
+# 3
+sum(str_detect(stringr::words, "ed$")) - sum(str_detect(stringr::words, "eed$"))
+
+cases3 <- c("qwrtedd", "dfgh", "yrtuieed", "anniesd")
+#pass case
+str_detect(cases3, "ed$") - str_detect(cases3, "eed$") #pass because this should have none
+#fail cases
+str_detect(cases3, "ed$")
+str_detect(cases3, "ed") - str_detect(cases3, "eed")
+
+# 4
+sum(str_detect(stringr::words, "(ing|ise)$"))
+
+cases4 <- c("qwrtedding", "dfghise", "yrtuieed", "annise")
+#pass case
+str_detect(cases4, "(ing|ise)$")
+#fail case
+#str_detect(cases4, "(ing$)" | "(ise$)")
+#str_detect(cases4, ("ing$") | ("ise$"))
+```
+
+## 7
+```{r}
+my_number <- c("973-723-6909", "(+1) 973-723-6909", "(973) 723-6909")
+str_view(my_number, "\\d\\d\\d-\\d\\d\\d-\\d\\d\\d\\d")
+str_view(my_number, "\\(\\+\\d\\)\\s\\d\\d\\d\\-d\\d\\d-\\d\\d\\d\\d")
+str_view(my_number, "\\(\\d\\d\\d\\)\\s\\d\\d\\d-\\d\\d\\d\\d")
+
+#fail case, none of these found matches
+str_view(my_number, "d\\d\\d-\\d\\d\\d-\\d\\d\\d\\d") 
+#str_view(my_number, "\\(\\+\\d\\)\\s\\d\\d\\d\\-\\d\\d\\d\\-\\d\\d\\d\\d\\")
+str_view(my_number, "\\(d\\d\\d\\)\\s\\d\\d\\d\\-\\d\\d\\d\\d")
+```
+
+## 8
+```{r}
+my_str <- c("apples, pears, and bananas")
+str_split(my_str, boundary("word"))
+
+#fail cases
+#str_split(my_str, boundary("n"))
+#str_split(my_str, boundary(" "))
+str_split(my_str, boundary("character"))
+```
+
+## 9
+It is better to split up by word because if we split by space, output includes commas next to the words but we often don't want the commma because it adds no additional meaning/value and would require extra clean up steps.

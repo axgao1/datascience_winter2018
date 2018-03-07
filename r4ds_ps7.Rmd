@@ -1,0 +1,372 @@
+---
+title: "r4ds_ps7"
+author: "Annie Gao"
+date: "3/1/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+#install.packages("dbplyr")
+library(dbplyr)
+```
+
+# Prelim questions
+##1 
+I worked with Umer Naeem.
+##2 
+I spent 20 hours.
+##3 
+Yes, I have done the try.github.io tutorial.
+
+#1 R4DS Chapter 19
+
+##1
+```{r}
+#from class
+winsorize <- function(x, low = 0.01, high = 0.99) {
+  stopifnot(is.numeric(x))
+  qts <- quantile(x, prob = c(low, high))
+  ifelse(x < qts[1], qts[1],
+         ifelse(x > qts[2], qts[2]), x)
+} 
+```
+
+##2
+```{r}
+#book example
+df <- tibble::tibble(
+  a = rnorm(10),
+  b = rnorm(10),
+  c = rnorm(10),
+  d = rnorm(10)
+)
+
+x <- df$a
+(x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+
+rescale01 <- function(x) {
+  rng <- range(x, na.rm = FALSE) #na.rm = FALSE as test
+  (x - rng[1]) / (rng[2] - rng[1])
+}
+rescale01(c(1, 2, 3))
+rescale01(c(1, 2, 3, NA, 5))
+```
+
+TRUE is not a function of rescale01 because it's an option or setting for the function, not an input. If there was a missing value in x or the input, setting na.rm = FALSE would return NAs for the entire output of the function. NAs are contagious.
+
+##3
+```{r}
+x <- c(1:10, Inf)
+rescale02 <- function(x) {
+  rng <- range(x, na.rm = TRUE, finite = TRUE)
+  results <- (x - rng[1]) / (rng[2] - rng[1])
+  ifelse(results == Inf, 1,
+         ifelse(results == -Inf, 0, results))
+}
+rescale02(x)
+```
+
+##4
+```{r}
+x <- c(1:10)
+calc_avg <- function(x) {
+  mean(is.na(x))
+}
+calc_avg(x)
+
+calc_wtavg <- function(x) {
+  x / sum(x, na.rm = TRUE)
+}
+calc_wtavg(x)
+
+calc_coefvar <- function(x) {
+  sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)
+}
+calc_coefvar(x)
+```
+
+##5
+```{r}
+vec1 <- c(1:10, NA, NA)
+vec2 <- c(11:20, NA, NA)
+
+both_na <- function(vec1, vec2) {
+  sum(is.na(vec1) & is.na(vec2)) #number of positions of NAs same as count of NAs
+}
+both_na(vec1, vec2)
+```
+
+##6
+```{r}
+test_str <- c("what", "what_whatthewhat", "whatthewhatthe")
+test_pref <- c("what")
+
+#from problem set prompt
+f1 <- function(string, prefix) { 
+  substr(string, 1, nchar(prefix)) == prefix
+}
+f2 <- function(x) {
+  if (length(x) <= 1) return(NULL)
+  x[-length(x)]
+}
+f3 <- function(x, y) {
+  rep(y, length.out = length(x))
+}
+
+f1(test_str, test_pref)
+f2(test_str)
+f3(test_str, test_pref)
+
+#rename
+#f1 to find_prefix
+#f2 to rm_last
+#f3 to replic_prefix
+```
+
+f1 gives whether there is the same prefix in each element in the string. f2 drops the last element in the string. f3 replicates the prefix the same number of times as the number of elements in the first string.
+
+##7
+```{r}
+test1 <- c(1:10)
+test2 <- c(11:20)
+
+if (sum(test1) > sum(test2)) {
+   print("wrong")
+} else {
+  print("just a test")
+}
+
+ifelse(test1[[5]] > test2[[1]], "check again", "not true")
+```
+
+If() allows you to work with single conditions and respond to the conditions separately. Ifelse() can combine multiple conditions and respond depending on satisfaction of the condition simultaneously.
+
+##8
+```{r}
+greeting <- function(time = lubridate::now()) {
+  hr <- hour(time)
+  ifelse(hr < 12, "good morning",
+         ifelse(hr >= 12 & hr < 18, "good afternoon", "good evening"))
+}
+
+Sys.setenv("TZ"="America/Chicago")
+greeting(now())
+```
+
+##9
+```{r}
+fizzbuzz <- function(x) {
+  if (x %% 7 == 0 & x %% 5 == 0) {
+   "fizzbuzz"
+  } else if (x %% 7 == 0) {
+    "fizz"
+  } else if (x %% 5 == 0) {
+    "buzz"
+  } else {x
+  }
+}
+
+fizzbuzz(35)
+fizzbuzz(77)
+fizzbuzz(50)
+fizzbuzz(13)
+```
+
+##10
+```{r}
+temp <- c(-40:40)
+
+#from problem set prompt
+if (temp <= 0) { 
+  "freezing"
+} else if (temp <= 10) { 
+  "cold"
+} else if (temp <= 20) { 
+  "cool"
+} else if (temp <= 30) { 
+  "warm"
+} else { "hot"
+}
+
+#using <=
+cut(temp, breaks = c(-Inf, 0, 10, 20, 30, Inf), 
+    labels = c("freezing", "cold", "cool", "warm", "hot"))
+
+#using <
+cut(temp, breaks = c(-Inf, 0, 10, 20, 30, Inf), LEFT = FALSE, 
+    labels = c("freezing", "cold", "cool", "warm", "hot"))
+```
+
+The other chief advantage is that cut() can "discretise" once continuous values.
+
+##11
+```{r, error = TRUE}
+#example from book
+x <- sqrt(2) ^ 2
+switch(x, 
+       a=,
+       b = "ab", 
+       c=,
+       d = "cd"
+)
+
+#modified
+y <- "e"
+switch(y, 
+       a=,
+       b = "ab", 
+       c=,
+       d = "cd",
+       stop("unknown op!")
+)
+```
+
+The switch() call takes whatever value x is (or character that matches x if a character) and returns the value from the specified operation or element associated with that position or character of x. Here, if x was the sqrt(2)^2, then the switch call returns "ab" because it is in the second position as x evaluated to 2. For illustrative purposes, instead of using x again, I use y as a substitute for x to differentiate between the two functions. If y was "e", it would throw the stop error.
+
+##12
+```{r}
+#from book
+commas <- function(...) stringr::str_c(..., collapse = ", ")
+commas(letters[1:10])
+#commas(letters, collapse = "-")
+#commas(letters, collapse = ",")
+```
+
+The commas function is supposed to collapse all the letters and separate them by commas. However, the commas function as given in the prompt does not work because there is no collapse function written into the commas function.
+
+##13
+```{r}
+#from book
+rule <- function(..., pad = "-") {
+  title <- paste0(...)
+  width <- getOption("width") - nchar(title) - 5
+  cat(title, " ", stringr::str_dup(pad, width), "\n", sep = "")
+}
+rule("Important output")
+
+#from problem set prompt
+rule2 <- function(..., pad = "-+") { #changed pad characters
+  title <- paste0(...)
+  width <- getOption("width") - nchar(title) - 40 #decreased width
+  cat(title, " ", stringr::str_dup(pad, width), "\n", sep = "")
+}
+rule2("Title", pad = "-+")
+```
+
+I changed the original rule to rule2 putting in the input 2 characters, "-". I also made the width smaller.
+
+##14
+Trim() removes some data or observations on both ends of a vector and calculates the mean using the remaining data. It essentially removes outliers in order to calculate a more accurate mean.
+
+#2 R4DS Chapter 20
+
+##1
+```{r}
+x <- c(1,2,3,4,5, NA, NaN)
+is.finite(x)
+!is.infinite(x)
+```
+
+is.finite(x) returns a vector that indicates which elements are finite and which are infinite. It has to be the same length as the original x vector since it indicates finite TRUE or FAlSE for each element in the vector. The function recognizes that NA and NaN are not finite values. !is.infinite() would count NA and NaN as not infinite values so it would indicate TRUE when NA or NaN appear in a vector.
+
+##2
+```{r}
+dplyr::near
+sqrt(2) ^ 2 == 2
+near(sqrt(2) ^ 2, 2)
+```
+
+Near() checks for whether to values are equal with a built in tolerance option. If two values are equal within the established tolerance, then near() will return TRUE. This can sometimes be less limiting than using == .
+
+##3
+For integer vectors, the current version of R uses 32-bit integers for integer vectors. R documentation states the range is approximately negative to positive 2*10^9. A double vector can take more values than integer vectors. All of its values conform to the IEC 60559 (or IEEE 754) standard. It has the precision of 53 bits, which translates to approximately a range of values from 2e-308 to 2e+308. Doubles also take on NaN, +Inf and -Inf, and +0 and -0
+
+##4
+```{r}
+x <- c(0.5, 0.7, 1.9)
+ceiling(x)
+floor(x)
+round(x, digits = 0) #default is 0
+trunc(x)
+```
+
+Ceiling() takes the doubles and returns the highest integer closest to the double not lower than the double inputs. 0.5 is rounded up using ceiling(). Floor() does the opposite and returns the doubles as the closet integer less than the double input. 1.9 is lowered to 1. Round() can also be used to turn a double into an integer when the default of 0 decimal places is used. When digits = 0, round() rounds the doubles to the closest integer. Truncate() takes the doubles and truncates the doubles toward 0; while 0.5 and 0.7 are truncated toward 0, 1.9 truncates to 1 as the integer closest to 0.
+
+##5
+```{r}
+x <- c("123", "567")
+x2 <- c("TRUE", "FALSE")
+x3 <- c("0.7777789", "0.898989")
+parse_integer(x)
+parse_logical(x2)
+parse_double(x3)
+```
+
+The functions from readr that turn a string into logical, integer, and double vectors are parse_integer(), parse_logical(), and parse_double().
+
+##6
+```{r}
+x <- c(1, 2, 3, NA, NaN)
+mean(is.na(x))
+sum(!is.finite(x))
+```
+
+mean(is.na(x)) gives the proportion of NAs in a vector. In the example above, there at 2 NAs, so the count is 2 since is.na is a Boolean. The mean adds up all the TRUE or 1 Boolean counts and divides by the total count, which is 5 in this case. Sum(!is.finite(x)) gives the total count of Booleans that indicate elements that are not finite or are NA or NaN. 
+
+##7
+```{r}
+x <- c(123, 345, 456, 567)
+
+#1
+last_value <- function(x) {
+  if (length(x) <= 1) return(NULL)
+  x[length(x)]
+}
+last_value(x)
+
+#2
+pos <- seq(1:20)
+even_pos <- function(x) {
+  if (pos %% 2 == 0) {
+    x[pos %% 2 == 0]
+  } else return(NULL)
+}
+even_pos(x)
+
+#3
+before_last <- function(x) {
+  if (length(x) <= 1) return(NULL)
+  x[-length(x)]
+}
+before_last(x)
+
+#4
+even_value <- function(x) {
+  if (x %% 2 == 0 & !is.na(x)) {
+    x
+  } else return(NULL)
+}
+even_value(x)
+```
+
+For the last_value function, we should use single brackets, []. The value inside the single brackets indicates position, which is given when we input the entire length of the vector because using the entire length indicates the last position. 
+
+##8
+```{r}
+x <- c(123, 345, 456, 567)
+length(x)
+x[2]
+x[3:5]
+x[5]
+#x[["name"]]
+```
+
+When subsetting with a positive integer that's bigger than the length of the vector, the result will be NA, with NA filling in the missing values resulting from the shorter vector. When subsetting with a name that doesn't exist, it will throw an error saying subscript out of bounds.
+
+##9
+```{r}
+knitr::include_graphics("question9.pdf")
+```

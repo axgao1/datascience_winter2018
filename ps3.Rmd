@@ -1,0 +1,398 @@
+---
+title: "ps3"
+author: Annie Gao
+output: html_document
+---
+
+```{r, include = TRUE}
+library(tidyverse)
+#install.packages("readxl")
+library(readxl)
+library(testthat)
+library(dplyr)
+library(tidyr)
+```
+
+#1.1 Misc.
+Worked with Di Yang and Riddhima Mishra
+
+
+#1.2 Data Ingestion
+##1 and 1
+```{r setup, include=TRUE}
+prov <- read_excel("HH_PUF_Provider_2014.xlsx", sheet = "Provider")
+prov_hhrg <- read_excel("HH_PUF_Provider_by_HHRG_2014.xlsx", sheet = "Provider by HHRG")
+
+test_that("test", expect_equal(nrow(prov),10882))
+test_that("test", expect_equal(nrow(prov_hhrg),105400))
+```
+
+* indicates that there is a missing value in the cells. The warning gives all the cells that have the * where there are no numerics. Both tests pass so there are the correct number of rows in prov and prov_hhrg.
+
+##2
+```{r, include = TRUE}
+cm_wt <- read_excel("CY 2014 Final HH PPS Case-Mix Weights.xlsx")
+cm_wt <- rename(cm_wt, "hcc" = "2014 Final HH PPS Case-Mix Weights")
+
+cm_wt <- cm_wt[,-which(names(cm_wt) == "2013 HH PPS Case-Mix Weights")]
+test_that("test", expect_equal(nrow(cm_wt),153))
+```
+
+I dropped the 2013 column and the test passed for 153 rows in the dataframe.
+
+
+#1.3 Institutional Research
+##1
+Five examples of home health services that agencies bill Medicare for are homebound services (provision of another person or special equipment), intermittent nursing care, physical therapy, speech pathology services, and continued operational servies.
+
+Source: https://www.medicare.gov/coverage/home-health-services.html
+
+##2
+An HHRG is one of 80 Home Health Resource Groups. On claims, an HHRG is identified using an HIPPS code, which is determined by assessments using an information set. These HIPPS codes contain information that is then used to match beneficiaries with HHRGs that are represented by HIPPS codes.
+
+Source: https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/ProspMedicareFeeSvcPmtGen/Downloads/hippsusesv4.pdf
+
+##3
+An HHC score stands for hierarchical condition categories and is a score that measures the risk of beneficiaries. These scores essentially measure how much Medicare would be spending on their services received compared to the overall average for the entire population on Medicare. The average HCC risk score is 1.08. Beneficiaries with higher scores than 1.08 are considered to have above average spending. Beneficiaries with a score of 0.75 is considered to require below average spending, and those with a score of 1.5 is considered to require above average spending. The score is determined by a beneficiary's age, sex, medical history, socieconomic situations, and prevous diagnoses.
+
+##4
+LUPA stands for low utilization payment adjustment. This adjustment takes place when a beneficiary recieves for or fewer visits in a 60-day episode. Payments by Medicare then is made on a national standardized per visit schedule by discipline instead of by episode period.
+
+Source: https://www.palmettogba.com/palmetto/providers.nsf/DocsCat/Providers~JM%20Home%20Health%20and%20Hospice~Articles~Home%20Health~8ZEF4Z6215?open
+
+
+#1.4 Data Validation
+##1
+```{r, include = TRUE}
+sum(prov_hhrg$"Distinct Beneficiaries")
+#3,491,843 distinct beneficiaries
+```
+
+"Approximately 3.4 million people receive Medicare skilled home health care"
+#http://journals.sagepub.com/doi/full/10.1177/1084822316666368
+The results from the prov_hhrg dataframe align with public source information on people receiving home health care on Medicare.
+
+##2
+```{r, include = TRUE}
+prov <- rename(prov, "Total_LUPA_Episodes" = "Total LUPA Episodes")
+
+sum(as.numeric(prov$`Total_LUPA_Episodes`), na.rm = TRUE) +
+  sum(prov$`Total Episodes (non-LUPA)`)
+
+sum(prov_hhrg$`Total Episodes`)
+
+prov_hhrg %>% n_distinct("Agency Name")
+
+prov %>% n_distinct("Agency Name")
+```
+
+prov (Total Episodes(LUPA and non-LUPA)) = 6568336
+prov_hhrg (Total Episodes) = 4221877
+
+The total episodes in prov and prov_hhrg are not the same. There are 2346459 fewer episodes in prov_hhrg than in prov, partially because there are a lot of missing in prov, but probably mainly because there are a lot more distinct agencies recorded in prov_hhrg than in prov, and while this is true, the hhrgs did not report episodes broken out for each hhrg.
+
+##3
+```{r, include = TRUE}
+prov_hhrg$unique_id <- paste(prov_hhrg$`Provider ID`, prov_hhrg$HHRG)
+
+n_distinct(prov_hhrg$unique_id)
+```
+
+The two columns that uniquely identify all the rows in prov_hhrg are Provider ID and HHRG. Pasting them together into a different column and using n_distinct gives us the same total number of rows as prov_hhrg, 105400.
+
+#1.5 Merge Provider Costs with Provider Case-Mix
+##1
+Separate takes values in one cell and splits it into multiple cells by column on separator characters. It requires the name of the dataframe, the name of the column to separate data from, and an into argument that puts the separated values into the newly created/specified columns. Separate gets rid of the original column and returns the dataframe with values separated into different columns. By default, it separates on non numeric or letter characters. Sep is used to specify what to separate on.
+
+##2
+Inner_join matches rows on keys in both x and y. The required arguments are the two dataframes used to join, the variables to join by, whether a copy of y should be created in x, and whether nonjoined duplicates should be displayed in the output.
+
+Link: https://stackoverflow.com/questions/40110644/is-there-a-merge-indicator-available-after-a-merge
+Dpylr joins dont seem to generate a variable similar to _merge in Stata but we can generate the variable separately using the option .merge = TRUE to get the variable .merge. 
+
+##3
+Str_sub() can be used to access individual characters in a string and can also be used to modify characters in a string. The three arguments it takes are a character vector, a starting position, and an ending position. Str_trim() takes out whitespace leading and trailing a character in a string.
+
+##4
+The five types of information available in both datasets are episode stage, the number of therapies, the clinical severity level, the functional severity level, and the service severity level. The episode stage gives information on where the beneficiary is in episodes of home healthcare; the number of therapies need to be binned in the same way, clinical severity determines diagnoses and treatment, functional severity measures how independent the beneficiary is, and service severity measures how comprehensive the services provided are.
+
+##5
+```{r, include = TRUE}
+n_distinct(prov_hhrg$`HHRG Description`)
+```
+
+From prov_hhrg, use column "HHRG Description". There are 148 distinct HHRG groups using this column.
+
+##6
+```{r, include = TRUE, error = TRUE}
+prov_hhrg <- prov_hhrg %>% 
+  separate(col = "HHRG Description", 
+           into = c("episode_stage", "no_therapies", "clinical_severity",
+                    "functional_severity", "service_severity"), sep = ",")
+
+prov_hhrg$`clinical_severity` <- str_trim(prov_hhrg$`clinical_severity`)
+prov_hhrg$`functional_severity` <- str_trim(prov_hhrg$`functional_severity`)
+prov_hhrg$`service_severity` <- str_trim(prov_hhrg$`service_severity`)
+```
+
+###6.1
+```{r, include = TRUE}
+prov_hhrg %>% filter(row_number() == 207)
+prov_hhrg %>% filter(row_number() == 950)
+prov_hhrg %>% filter(row_number() == 1603)
+```
+
+The warning message states "Too many values at 302 locations: 207, 950, 1603..." Separate and str_sub threw a warning because there were extra characters, such as a comma at the end in these rows. We should not drop these because these are not data errors but just part of the data and separate and str_sub was able to separate these out correctly.
+
+##7
+```{r, include = TRUE}
+n_distinct(cm_wt$Description)
+```
+
+I plan to merge from the "Description" column in cm_wt. There are 17 distinct HHRG groups in the column.
+
+##8
+```{r, include = TRUE}
+cm_wt$`Description` <- str_trim(cm_wt$`Description`)
+
+cm_wt <- cm_wt %>% 
+  separate(col = "Description", into = c("episode_stage", 
+                                         "no_therapies"), sep = ",")
+
+cm_wt <- cm_wt %>%
+  mutate(clinical_severity = str_sub(cm_wt$`Clinical, Functional, and Service Levels`,
+                                     start = 2, end = 2))
+
+cm_wt$`clinical_severity` <- str_trim(cm_wt$'clinical_severity')
+
+
+cm_wt <- cm_wt %>% 
+  mutate(functional_severity = str_sub(cm_wt$`Clinical, Functional, and Service Levels`, 
+                                       start = 4, end = 4))
+
+cm_wt$`functional_severity` <- str_trim(cm_wt$`functional_severity`)
+
+
+cm_wt <- cm_wt %>%
+  mutate("service_severity" = str_sub(cm_wt$`Clinical, Functional, and Service Levels`, 
+                                      start = 6, end = 6))
+
+cm_wt$`service_severity` <- str_trim(cm_wt$`service_severity`)
+```
+
+I used separate() first on the Description column to separate into two columns, "Episode Stage" and "No Therapies". Then, I separated the column "Clinical, Functional, and Service Levels" into three individual columns with names that matched prov_hhrg column names.
+
+##9
+```{r, include = TRUE}
+prov_hhrg %>% count(`episode_stage`)
+cm_wt %>% count(`episode_stage`)
+
+prov_hhrg %>% count(`no_therapies`)
+cm_wt %>% count(`no_therapies`)
+
+prov_hhrg %>% count(`clinical_severity`)
+cm_wt %>% count(`clinical_severity`)
+
+prov_hhrg %>% count(`functional_severity`)
+cm_wt %>% count(`functional_severity`)
+
+prov_hhrg %>% count(`service_severity`)
+cm_wt %>% count(`service_severity`)
+
+# Below, I am changing prov_hhrg$Clinical Severity to match that of cm_wt$Clinical Severity. 
+# I do the same thing for the Functional and Service Severity columns so the values are just numerics without text.
+
+prov_hhrg$`clinical_severity` <- fct_recode(prov_hhrg$`clinical_severity`, 
+                                            `1` = c("Clinical Severity Level 1"), 
+                                            `2` = c("Clinical Severity Level 2"),
+                                            `3` = c("Clinical Severity Level 3"))
+
+prov_hhrg$`functional_severity` <- fct_recode(prov_hhrg$`functional_severity`, 
+                                              `1` = c("Functional Severity Level 1"), 
+                                              `2` = c("Functional Severity Level 2"),
+                                              `3` = c("Functional Severity Level 3"))
+
+prov_hhrg$`service_severity` <- fct_recode(prov_hhrg$`service_severity`, 
+                                              `1` = c("Service Severity Level 1"), 
+                                              `2` = c("Service Severity Level 2"),
+                                              `3` = c("Service Severity Level 3"),
+                                              `4` = c("Service Severity Level 4"),
+                                              `5` = c("Service Severity Level 5"))
+
+# Below, I am changing cm_wt$Episode Stage values to match that of prov_hhrg$Episode Stage values.
+
+cm_wt$`episode_stage` <- fct_recode(cm_wt$`episode_stage`, 
+                                    `Early Episode` = c("1st and 2nd Episodes"), 
+                                    `Late Episode` = c("3rd+ Episodes"),
+                                    `Early or Late Episode` = c("All Episodes"))
+
+# Below, I collapse the column cm_wt$No Therapies to match that of prov_hhrg$No Therapies
+# (after first running str_trim). 
+
+cm_wt$`no_therapies` <- str_trim(cm_wt$`no_therapies`)
+
+cm_wt$`no_therapies` <- fct_collapse(cm_wt$`no_therapies`,
+             `0-13 therapies` = c("0 to 5 Therapy Visits", 
+                                  "6 Therapy Visits", 
+                                  "7 to 9 Therapy Visits", 
+                                  "10 Therapy Visits", 
+                                  "11 to 13 Therapy Visits"),
+             `14-19 therapies` = c("14 to 15 Therapy Visits", 
+                                   "16 to 17 Therapy Visits", 
+                                   "18 to 19 Therapy Visits"),
+             `20+ therapies` = c("20+ Therapy Visits"))
+
+prov_hhrg$`no_therapies` <- str_trim(prov_hhrg$`no_therapies`)
+prov_hhrg$`episode_stage` <- str_trim(prov_hhrg$`episode_stage`)
+
+```
+
+After running count on all 5 columns in both datasets, none of the values in prov_hhrg match the values in cm_wt because of the way I separated out my columns. All 5 columns show the same information in both datasets but they all require some cleanup by recode and collapse. The Clinical Severity, Functional Severity, and Service Severity columns require further cleanup using factor recode. After recoding and collapsing, Clinical Severity, Functional Severity, and Service Severity from both datasets have the same values. No Therapies and Episode Stage have the same values, respectively, in both datasets.
+
+##10
+```{r, include = TRUE, error = TRUE}
+prov_hhrg_wt <- inner_join(prov_hhrg, cm_wt, 
+                           by = c("episode_stage", "no_therapies", "clinical_severity",
+                                  "functional_severity", "service_severity"))
+
+test_that("test", expect_equal(nrow(prov_hhrg_wt),105400))
+
+prov_hhrg_wt %>% count(is.na(hcc))
+```
+
+The merge worked because the test_that function did not return an error. There are 105400 rows in prov_hhrg_wt. The count function to check for NAs returns FALSE with the total number of rows, meaning there are no NAs in the column.
+
+# 1.6 Billing Outlier Analysis
+##Constructing dataframe prov_sum
+```{r, include = TRUE, error = TRUE}
+prov_sum <- prov_hhrg_wt %>% 
+  group_by(`Provider ID`, `Agency Name`, `State`) %>%
+  summarise(avg_med_pay = weighted.mean(`Average HHA Medicare Payment Amount`, `Total Episodes`), 
+            avg_hcc = weighted.mean(`hcc`, `Total Episodes`), 
+            tot_episodes = sum(`Total Episodes`))
+```
+
+The dataframe, prov_sum, is created, with 6 columns. The variable names are "Provider ID", "Agency Name", "State", "avg_med_pay", "avg_hcc", and "tot_episodes".
+
+##1
+```{r, include = TRUE, error = TRUE}
+summary(prov_sum$avg_med_pay)
+
+prov_sum %>% group_by(`Agency Name`) %>% 
+  summary(prov_sum$avg_med_pay) 
+
+ggplot(prov_sum) +
+  geom_histogram(mapping = aes(x = avg_med_pay), 
+                 binwidth = 30) 
+#outliers not visible
+
+ggplot(prov_sum) +
+  geom_histogram(mapping = aes(x = avg_med_pay), 
+                 binwidth = 1)
+#outliers visible
+```
+
+Variation in average cost per episode by home health agency ranges from a minimum amount of $1158 to a max of $6921. The lower quartile is $2067 with a median of $2662 and an upper quartile of $3078. We can see from the second histogram that there are some outliers past the $6000 mark of average Medicare payment, and most of the data is observed to the left with a long right tail.
+
+##2
+```{r, include = TRUE, error = TRUE}
+prov_sum <- prov_sum %>% 
+  mutate(avg_cost_hcc = avg_med_pay * avg_hcc) #constructed another variable, avg_cost_hcc, to account for case-mix weight
+
+summary(prov_sum$avg_cost_hcc)
+
+prov_sum %>% group_by(`Agency Name`) %>% 
+  summary(prov_sum$avg_cost_hcc) 
+
+ggplot(prov_sum) +
+  geom_histogram(mapping = aes(x = avg_cost_hcc), 
+                 binwidth = 30)
+#outliers not invisible
+
+ggplot(prov_sum) +
+  geom_histogram(mapping = aes(x = avg_cost_hcc), 
+                 binwidth = 1)
+#outliers visible
+
+#exploring covariation
+#1
+ggplot(prov_sum) +
+  geom_point(mapping = aes(x = avg_med_pay, y = avg_hcc))
+
+#2
+ggplot(prov_sum) +
+  geom_hex(mapping = aes(x = avg_med_pay, y = avg_hcc))
+
+#3
+ggplot(prov_sum, aes(x = avg_med_pay, y = avg_hcc)) + 
+    geom_boxplot(aes(group = cut_width(avg_med_pay, 500)))
+```
+
+Variation in average cost per episode after accounting for case-mix weight ranges from a minimum amount of $575.6 to a max of $15428.2. The lower quartile is $1573.3 with a median of $2171.4 and an upper quartile of $3099.1. We can see from the second histogram that there are some outliers past the $4000 mark, and most of the data is observed to the left with an even longer right tail.
+
+In exploring covariation, I prefer plot #2 because it is a more informative graph than #1 and easier to read than #3. Plot #2 shows where there is the highest concentration of points depicting the relationship between avg_hcc and avg_med_pay, and where the points are more dispersed. We can see from the plot that the relationship between the two variables are strong with the most number of observations concentrated in the lower left areas of the graph. This makes sense because histograms of the two variables revealed that both are left leaning with datapoints concentrated on the left.
+
+##3
+```{r, include = TRUE, error = TRUE}
+prov_sum <- prov_sum %>% 
+  mutate(normalized_cost = avg_med_pay/avg_hcc) #constructed normalized cost variable
+
+ggplot() + 
+  geom_histogram(aes(x = prov_sum$avg_med_pay), 
+                 fill = 1, alpha = 0.5) +
+  geom_histogram(aes(x = prov_sum$normalized_cost), 
+                 fill = 5, alpha = 0.5) 
+```
+
+Source: https://stackoverflow.com/questions/23480248/overlapping-ggplot2-histograms-with-different-variables
+
+About half, or slightly less, of the variation in average cost per episode across HHAs is accounted for by differences in case-mix. The normalized cost is used as a comparison against average cost per episode and we see that the overlap between the two datasets in the histogram is slightly less than half of the observations in average cost per episode.
+
+##4
+```{r, include = TRUE, error = TRUE}
+prov_sum %>% 
+  filter(State == "IL") %>% 
+  select(`Provider ID`, `Agency Name`, 'State', 'avg_med_pay') %>%
+  arrange(desc(avg_med_pay)) # highest billing per episode, no adjustment
+
+prov_sum %>% 
+  filter(State == "IL") %>% 
+  select(`Provider ID`, `Agency Name`, 'State', 'normalized_cost') %>%
+  arrange(desc(normalized_cost)) # normalized cost
+```
+
+The top 5 HHAs with the highest billing per episode in Illinois are:
+Prime Care Resource, Inc
+FORUM HEALTH CARE
+SIMPLY HOME HEALTH, LLC
+HOME BOUND HEALTHCARE, INC
+WHITESTAR HOME HEALTH INC. 
+
+The top 5 HHAs with the highest billing per episode after normalizing for case mix in Illinois are:
+FAIRFIELD MEMORIAL HOSPITAL
+HENDERSON COUNTY HEALTH DEPART
+BEST CARE HOME HEALTH, INC.
+QUANTUM HEALTHCARE SERVICES, INC
+SWEDISH COVENANT HOSPITAL HOME. 
+
+None of the HHAs overlapped between the two lists. If the OIG decided to try to push down costs at the 5 HHAs with the highest billing per episode, we still might not see an overlap because the normalized cost depends on the HCC, or patient risk, so pure cost decreases might not push the 5 HHAs into the upper regions of the list of normalized cost if they did not have high HCCs or high patient risks.
+
+##5
+```{r, include = TRUE, error = TRUE}
+prov_sum <- prov_sum %>% 
+  mutate(poss_overbill = avg_med_pay - normalized_cost) 
+#created new possible overbilling variable
+
+prov_sum %>% filter(State == "IL") %>% 
+  arrange(desc(poss_overbill)) %>% 
+  select(poss_overbill, everything())
+```
+
+Summing over all episodes, the 5 HHAs with the most possible overbilling are:
+PRIME CARE RESOURCE,  INC
+FORUM HEALTH CARE
+SIMPLY HOME HEALTH, LLC
+WHITESTAR HOME HEALTH INC
+HOME BOUND HEALTHCARE, INC
+
+This list is useful when comparing billing between HHAs since we are subtracting each HHAs costs by a standardized or normalized cost. The difference should be the relative cost unique to each HHA. The list from #4 is useful for just examining costs for each HHA without ability to compare relative to standardized costs.

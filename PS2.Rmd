@@ -1,0 +1,441 @@
+
+---
+title: "PS2"
+output: html_document
+author: Annie Gao
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd ("/Users/Annie/Desktop")
+library(tidyverse)
+library(nycflights13)
+```
+
+Worked with Riddhima Mishra and Di Yang.
+
+# 1.2 
+##1
+```{r 1, include = TRUE}
+flights %>% 
+  count(carrier) %>% 
+  arrange(desc(carrier))
+```
+
+##2
+```{r 2, include = TRUE}
+#1
+flights %>%
+  group_by(carrier) %>%
+  summarize(count = n(),
+            avgarrdelay = mean(arr_delay, na.rm = TRUE))
+
+#2
+flights %>%
+  group_by(carrier) %>%
+  summarize(count = n(),
+            medarrdelay = median(arr_delay, na.rm = TRUE))
+
+#3
+flights %>%
+  group_by(carrier) %>%
+  summarize(count = n(),
+            minarrdelay = min(arr_delay, na.rm = TRUE))
+
+#4
+flights %>%
+  group_by(carrier) %>%
+  summarize(count = n(),
+            maxarrdelay = max(arr_delay, na.rm = TRUE))
+
+
+#5
+flights %>%
+  group_by(carrier) %>%
+  summarize(count = n(),
+            iqrarrdelay = IQR(arr_delay, na.rm = TRUE))
+```
+
+I found 5 measures of arrival delays using the mean, median, minimum, maximum, and IQR, grouped by airline.
+
+##3
+Normally, passengers would think departure delay is more important. However, we should care about arrival delay because even if a flight is delayed in departure, it could still make up time in the air to ensure it arrives on time. The problem occurs when a flight does not arrive on time, not necessarily that it was delayed in taking off.
+
+##4
+```{r 4, include = TRUE}
+not_cancelled <- filter(flights, !is.na(dep_delay) | !is.na(arr_delay))
+
+not_cancelled %>% count(dest) #want to replicate this
+# different approach
+not_cancelled %>% 
+  group_by(dest) %>% 
+  summarise(n = n())
+
+not_cancelled %>% count(tailnum, wt = distance) #want to replicate this
+#different approach
+not_cancelled %>%
+  group_by(tailnum) %>%
+  summarize(n = sum(distance))
+```
+
+##5
+Definition of cancelled flights as (is.na(dep_delay) | is.na(arr_delay) is suboptimal because they could be redundant. (is.na(dep_delay))  and (is.na(arr_delay)) might be capturing the same flights that were cancelled. We would not see arrival delay if there was an NA in the departure delay for that light, and vice versa. Since we're examining arrival delay, that column would be more important. 
+
+##6
+```{r 6, include = TRUE}
+propplot <- flights %>% 
+  group_by(month, day) %>% 
+  summarise(propcanc = mean(is.na(arr_delay)), 
+            avgdelay = mean(arr_delay, na.rm = TRUE))
+
+ggplot(propplot) + 
+  geom_histogram(mapping = aes(x = day, y = propcanc), 
+                 stat = "identity")
+
+ggplot(propplot, aes(x=avgdelay, y=propcanc)) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+From the histogram, we see that cancellation proportions are highest around the 10th of the month. The second plot shows that there is a pattern between the average delay and the proportion of cancelled flights. They seem to trace out the same trajectory.  
+
+##7
+```{r 7, include = TRUE}
+flights %>% 
+  group_by(carrier) %>% 
+  summarise(avgar_delay = mean((arr_delay), na.rm = TRUE)) %>% 
+  arrange(desc(avgar_delay)) %>% 
+  mutate(rank = rank(desc(avgar_delay))) 
+```
+
+The output is grouped by carrier with average arrival delays by carrier and ranked with 1 being the longest arrival delay. F9 is the carrier ranked as the worst by average delays.
+
+##8
+```{r 8, include = TRUE}
+flights %>% 
+  filter(origin == "LGA"| origin == "JFK") %>% 
+  group_by(dest) %>% 
+  summarise(avgar_delay = mean((arr_delay), na.rm = TRUE)) %>% 
+  arrange(desc(avgar_delay)) %>% 
+  mutate(rank = rank(desc(avgar_delay))) 
+```
+
+The output is first filtered for just flights originating from JFK or LGA and grouped with average arrival delays by destination and ranked in the same way as above. CAK is the worst destination.
+
+# 1.3
+##1
+```{r 1.3.1, include = TRUE}
+flights %>% 
+  group_by(tailnum) %>% 
+  summarise(total = sum(arr_delay, na.rm = TRUE), 
+            appearfreq = n()) %>% 
+  arrange(desc(total))
+```
+
+N15910 has the most number of arrival delays with a total of 7317 minutes. There were 280 planes delayed every time it appeared in the dataset.
+
+##2
+```{r 1.3.2, include = TRUE}
+flights %>% 
+  group_by(time_hour) %>% 
+  summarise(total = sum(arr_delay, na.rm = TRUE)) %>% 
+  arrange(desc(total))
+```
+
+It seems that there are longer delays toward the latter hours of the day, such as around 6pm, 7pm, 8pm, or 9pm. So you should fly earlier in the day to avoid delays.
+
+##3
+```{r 1.3.3, include = TRUE}
+flights %>% 
+  group_by(dest) %>% 
+  summarise(total = sum(arr_delay, na.rm = TRUE)) %>% 
+  arrange(desc(total))
+#total minutes of delay by destination
+
+flights %>% 
+  group_by(dest) %>% 
+  mutate(total = sum(arr_delay, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  mutate(prop = (arr_delay/total)) %>% 
+  select(dep_delay, total, prop)
+```
+
+ATL, CLT, and ORD are the three destinations with the highest arrival delays.
+The second line of code gives each flight's proportion of delay to total delay to that destination.
+
+##4
+```{r 1.3.4, include = TRUE}
+flights %>% 
+  group_by(dest) %>%
+  mutate(lagdepdelay = lag(dep_delay)) %>%
+  ggplot(mapping = aes(x = lagdepdelay, y = dep_delay)) + 
+  geom_point() + 
+  geom_jitter()
+```
+
+It's unclear if there is a relationship between the delay of a flight and the delay of one immediately preceeding. There is a lot of bunching in the 500 min delay area but this could just be due to lots of flights tending to be delayed by 0-500 minutes and it might not have anything to do with the delay of the preceeding flight. We see this also in that there are also flights that took off on time while the flight before it was delayed. 
+
+##5
+```{r 1.3.5, include = TRUE}
+flights %>% 
+  group_by(dest) %>%
+  mutate(flightspeed = distance/air_time) %>% 
+  arrange(desc(flightspeed)) %>%
+  select(dest, origin, air_time, flightspeed)
+```
+
+Flights to ATL, MSP, GSP, and BNA from LGA and EWR had the fastest flightspeeds and really low air_time. Normally, planes travel at approximately 9.6 miles per minute. Since flightspeed is calculated in minutes, the top 4 flight speeds are relatively fast, but they also don't seem to be faster enough to be recording errors. 
+  
+##6
+```{r 1.3.6, include= TRUE}
+flights %>% 
+  group_by(dest) %>% 
+  filter(n_distinct(carrier)>=2) %>% 
+  select(dest, carrier, everything()) 
+```
+
+These are all the destinations that are flown by at least two carriers.
+
+##7
+```{r 1.3.7, include = TRUE}
+flights %>%
+    group_by(tailnum) %>%
+    mutate(index = row_number()) %>%
+    filter(arr_delay > 60) %>%
+    summarize(countsbfdelay = first(index) - 1)
+```
+
+This gives the number of flights grouped by tail number that occurred before the first delay of more than an hour that day. 
+
+#1.4
+##1
+```{r 1.4.1, include = TRUE}
+diamonds %>% 
+  summarise(sd_price = sd(price), 
+            iqr_price = IQR(price), 
+            mean_price = mean(price), 
+            median_price = median(price))
+
+ggplot(diamonds) + 
+  geom_histogram(mapping = aes(x = price), binwidth = 20)
+ggplot(diamonds) + 
+  geom_histogram(mapping = aes(x = price), binwidth = 80)
+```
+
+There are more diamonds in the lower price ranges and fewer diamonds as the price increases. In looking at a histogram of diamond prices, we see a break in the price near the high $1000 point. It's unusual to see that there aren't diamonds at a specific price in the high $1000s. A larger bin specification would not show the price break clearly.
+
+##2
+```{r 1.4.2, include = TRUE}
+diamonds %>% count(carat == 0.99)
+diamonds %>% count(carat == 1)
+```
+
+There are 23 diamonds that are 0.99 carats and 1558 diamonds that are 1 carat. There aren't many .99 diamonds because people might just want to buy a 1 carat diamond instead since it's not going to be any distinguishably different from a 0.99 carat diamond.
+
+##3
+```{r 1.4.3, include = TRUE}
+ggplot(diamonds) + 
+  geom_histogram(mapping = aes(x = price), 
+                 binwidth = 20)
+
+ggplot(diamonds) + 
+  geom_histogram(mapping = aes(x = price))
+#binwidth unset
+
+ggplot(diamonds, aes(carat, price)) +
+  geom_point() +
+  xlim(1, 3)
+
+ggplot(diamonds, aes(carat, price)) +
+  geom_point() +
+  coord_cartesian(xlim = c(1,3))
+
+ggplot(diamonds, aes(carat, price)) +
+  geom_point() +
+  coord_cartesian(xlim = 2, ylim = 17000)
+#only shows one datapoint at $17000 at 2.3 carats. rest got cut off when zooming in. 
+```
+
+Leaving binwidth unset defaults to 30 and we see that most diamonds are priced in the lower ranges. Using just geom_point with xlim from 1 to 3 limits the graph to display only datapoints between 1 and 3 carats without y limits, unless we specify. Adding coord_cartesian limits the axes but does not limit datapoints from displaying outside the xlim specification. When zooming, the xlim value get cut off, seen in last graph.
+
+##1
+```{r 1.4.2.1, include = TRUE}
+summary(diamonds)
+#looks like the diamonds dataset doesn't have missing values...
+
+summary(flights) 
+#arr_delay has 9430 missing values
+
+ggplot(flights, aes(arr_delay)) +
+  geom_histogram()
+
+ggplot(flights, aes(carrier)) +
+  geom_bar()
+```
+
+Using geom_histogram, missing values are dropped. The dropped values match the 9430 displayed by summary. Using geom_bar, the bar chart maps missing values as NA because it can read NA as another categorical value while geom_histogram does not.
+
+##2
+na.rm = TRUE in mean() and sum() drops the NA values before performing functions.
+
+#1.5
+##1
+```{r 1.5.1, include = TRUE}
+newdf <- flights %>% 
+  group_by(dest, month) %>%
+  summarise(avgdelay = mean(arr_delay, na.rm = TRUE))
+
+ggplot(newdf, mapping = aes(x = month, y = dest)) + 
+ geom_tile(mapping = aes(fill = avgdelay))
+```
+
+Some of the issues with the plot are:
+- there are too many destinations that it is impossible to see the different destinations on the y axis
+- the x axis starts with 0 and ends with 12.5 because the units of counting is 2.5 and not 1.
+
+##2
+```{r 1.5.2, include = TRUE, error = TRUE}
+top20dest <- flights %>% count(dest) %>% arrange(desc(n)) %>% head(arrange(desc(n)), n =20)
+list20dest <- top20dest$dest
+
+list <- c("ORD", "ATL", "LAX", "BOS", "MCO", "CLT", "SFO", "FLL", "MIA", "DCA", "DTW", "DFW", "RDU", "TPA", "DEN", "IAH", "MSP", "PBI", "BNA", "LAS")
+
+newdf2 <- flights %>% 
+  filter(dest %in% list) %>% 
+  group_by(dest, month) %>% 
+  summarise(avgdelay = mean(arr_delay, na.rm = TRUE))
+
+ggplot(newdf2, mapping = aes(x = month, y = dest)) + 
+ geom_tile(mapping = aes(fill = avgdelay))
+```
+
+I first picked the top 20 most travelled destinations by counting the number of times they appear as destinations. I then used these 20 destinations to graph the plot again so it's more readable but still relevant.
+
+##3
+From the second plot, we see that the average arrival delays are highest in the summer months and lowest between September and December. January and February also have relatively low average delays, although not as low as October or November, which is actually very surprising since that is when we expect there to be a lot more delays.
+
+#Public Sector Application
+
+##4
+```{r 2.0, include = TRUE}
+chi.flights_Jan <- read_csv("Jan.csv")
+chi.flights_Feb <- read_csv("Feb.csv")
+chi.flights_March <- read_csv("March.csv")
+chi.flights_April <- read_csv("April.csv")
+chi.flights_May <- read_csv("May.csv")
+chi.flights_June <- read_csv("June.csv")
+chi.flights_July <- read_csv("July.csv")
+chi.flights_Aug <- read_csv("Aug.csv")
+chi.flights_Sept <- read_csv("Sept.csv")
+chi.flights_Oct <- read_csv("Oct.csv")
+chi.flights_Nov <- read_csv("Nov.csv")
+chi.flights_Dec <- read_csv("Dec.csv")
+
+totflights <- bind_rows(chi.flights_Jan, chi.flights_Feb, chi.flights_March, chi.flights_April, chi.flights_May, chi.flights_June, chi.flights_July, chi.flights_Aug, chi.flights_Sept, chi.flights_Oct, chi.flights_Nov, chi.flights_Dec)
+
+chi <- c("ORD", "MDW")
+chiflights <- totflights%>% filter(ORIGIN %in% chi | DEST %in% chi)
+#limit sample flights to just ORD or MDW-related flights
+```
+
+##1
+```{r 2.1, include = TRUE}
+chiflights %>% 
+  group_by(FL_DATE) %>% 
+  summarise(avg = mean(ARR_DELAY, na.rm = TRUE)) %>% 
+  arrange(avg)
+#January 30th is the day with lowest average arrival delays.
+
+chiflights %>% 
+  group_by(FL_DATE) %>% 
+  mutate(notdelayed = ARR_DELAY <= 15) %>% 
+  summarise(percnotdelayed = mean(notdelayed, na.rm = TRUE)) %>% 
+  arrange(desc(percnotdelayed))
+# percent on time (highest on time percentage happens on Nov. 24th at 96.847%)
+
+toplot <- chiflights %>% 
+  group_by(FL_DATE) %>% 
+  mutate(notdelayed = ARR_DELAY <= 15) %>% 
+  summarise(avg = mean(ARR_DELAY, na.rm = TRUE), 
+            percnotdelayed = mean(notdelayed, na.rm = TRUE))
+
+ggplot(toplot) + geom_col(mapping = aes(x = FL_DATE, y = avg, fill = percnotdelayed >= 0.8))
+```
+
+First, we examine all the bars on the graph. The bars indicate the average arrival delays for each day. We can see that the average arrival delays peak between February and March, again between August and September, and reaches the highest peak at the end of the year. The distinction between the orange and blue color show which days have arrival on time percentages above 80%. It makes sense that high on time rates also have low average delays or have earlier arrivals.  
+
+##2
+```{r 2.2, include = TRUE}
+chicagoonly <- chiflights %>% filter(DEST_CITY_NAME == "Chicago, IL")
+#only has Chicago destinations
+ggplot(chicagoonly) + geom_histogram(mapping = aes(x = FL_DATE), binwidth = 5)
+```
+
+Flights to Chicago peak between July and September of 2016. Generally, flights are most common in the summer.
+
+##3
+Based on the results, I would recommend having the conference toward the end of November because it has the highest probability of being on time and has one of the highest numnber of flights. However, since it's also the same time as Thanksgiving travel season, it does not sound like a good idea to have it near Thanksgiving. So I would really recommend is January 30th because, while it has one of the lowest number of flights to Chicago, it has the shortest length of delays. This recommendation does not take into consideration New Years holidays and whether people want to arrive a day prior to the conference.
+
+```{r 2.3, include = TRUE }
+toplot <- chiflights %>% 
+  group_by(FL_DATE) %>% 
+  summarise(avg = mean(ARR_DELAY, na.rm = TRUE))
+```
+
+###1 basic plot
+```{r, include = TRUE}
+ggplot(toplot) + geom_col(mapping = aes(x = FL_DATE, y = avg))
+```
+
+###2 sophisticated plot
+```{r , include = TRUE}
+toplot2 <- chiflights %>% 
+  group_by(FL_DATE) %>% 
+  mutate(avg = mean(ARR_DELAY, na.rm = TRUE))
+
+ggplot(toplot2, 
+       mapping = aes(x = FL_DATE, y = avg, color = CARRIER)) + 
+  geom_point() + 
+  geom_smooth(se = FALSE)
+```
+
+The basic plot just shows average arrival delays by flight date. The sophisticated plot shows the average arrival delay length by flight date and carrier. The color distinctions allow us to see which carriers tend to have more delays around certain dates of the year and the average length of delays that day. I would submit the sophisticated plot to show more information in one graph.
+
+###3 dataset
+Two other pieces of information I would include are flight prices and passenger enplanement. We would want to consider when flights are cheapest and when there is most likely to be tickets/seats available. 
+Prices: https://www.transtats.bts.gov/AIRFARES/
+Enplanement: https://www.faa.gov/airports/planning_capacity/passenger_allcargo_stats/passenger/media/cy16-commercial-service-enplanements.pdf
+
+##4
+```{r 2.4, include = TRUE, error = TRUE}
+carrierplot <- chiflights %>% 
+  filter(DEST_CITY_NAME == "Chicago, IL" & FL_DATE == "2016-01-30") %>% 
+  group_by(CARRIER) %>% 
+  mutate(avgdelaycarrier = mean(ARR_DELAY, na.rm = TRUE), numflights = n()) %>%
+  arrange(avgdelaycarrier)
+
+# simple plot
+ggplot(carrierplot) + geom_col(mapping = aes(x = CARRIER, y = numflights))
+
+# sophisticated plot
+ggplot(carrierplot, mapping = aes(x = CARRIER, y = numflights)) + 
+  geom_point() + 
+  facet_wrap(~DEST)
+```
+
+The first chunk returns B6 as the carrier that has the lowest average arrival delay on January 30th at 26.5 mins early. However, after examining the number of flights on Jan. 30th by that carrier, we see that it has very few flights. I then looked at how many flights each carrier flew on that day. I would suggest picking a carrier that has more flights on that day with the lowest average delay, such as AA or UA. The sophisticated plot shows the number of flights, carrier, and the two airports in Chicago. From the plot, we see that AA and UA have a high number of flights and we should select ORD as the destination airport because it serves AA and UA, and servies more carriers and offers more flights.
+
+##5
+```{r 2.5, include = TRUE}
+gaplot <- chiflights %>% 
+  filter(ORIGIN_CITY_NAME == "Savannah, GA" & 
+           DEST_CITY_NAME == "Chicago, IL") %>%
+  group_by(MONTH, DAY_OF_MONTH) %>% 
+  mutate(avgarrdelay = mean(ARR_DELAY, na.rm = TRUE), numflights = n()) %>% 
+  arrange(avgarrdelay) %>% 
+  select(avgarrdelay, numflights, MONTH, DAY_OF_MONTH, everything())
+
+ggplot(gaplot) + geom_col(mapping = aes(x = FL_DATE, y = avgarrdelay, fill = numflights))
+```
+
+I filtered for origin city and destination city to be Savannah and Chicago, respectively. Since we still want to ensure that attendees arrive on time, we should focus on arrival delays and select the date with the lowest arrival delay. The flight date with the lowest arrival delays is January 8th. Since we also care about the number of flights, many days in January have low arrival delays (in fact, they are early) and have a high number of flights as seen in graph with light blue in the beginning of January.# ps2-axgao1

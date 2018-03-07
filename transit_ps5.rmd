@@ -1,0 +1,456 @@
+---
+title: "transit_ps5"
+author: "Annie Gao"
+date: "2/18/2018"
+output: html_document
+---
+
+```{r, include = TRUE}
+library(tidyverse)
+#install.packages("statar")
+library(statar)
+#install.packages("readxl")
+library(readxl)
+library(tibble)
+library(lubridate)
+```
+
+# 3 STA – Institutional research
+
+## 1
+Data from the BLS reports that the median annual salary for a transit and intercity bus driver was $39,790 in 2016.
+https://www.bls.gov/ooh/transportation-and-material-moving/bus-drivers.htm
+
+## 2
+Estimated overtime spending in 2016 at the Chicago Transit Authority is $5,657,020.47. This was sourced from the Chicago Data Portal. https://data.cityofchicago.org/Administration-Finance/Employee-Overtime-and-Supplemental-Earnings-2016/tsqz-67gi/data
+
+## 3
+The absence rate in January 2015 is 3.8% according to a report released by the City of Chicago Absenteeism Task Force.
+https://www.cityofchicago.org/content/dam/city/depts/mayor/Absenteeism%20Task%20Force/AbsenteeismTaskForceReport.pdf
+
+# 4 STA – Initial Data Exploration
+
+## 1
+```{r setup, include = TRUE}
+ot_fund <- read_csv("/project2/ppha30531/axgao1/ot_fund.csv")
+
+colnames(ot_fund)
+nrow(ot_fund)
+ot_fund %>% count(Payroll.Function.Description)
+ot_fund %>% group_by(Payroll.Function.Description) %>% summarise(n())
+ot_fund %>% count(Payroll.Job.Title)
+```
+
+The column names are:
+Fiscal.Year - covers period of 6 years from 2012 to 2017
+
+Payroll.End.Date  - in date format 
+
+Payroll.Fund.Code.Category - has 3 distinct values; Capital, Operating, and Reimbursable
+
+Payroll.RollUp.Department.Description - 47 distinct values describing department
+
+Payroll.Job.Title - has 236 distinct values in each cell but values include commas with the first part being the role and the second being the department
+
+Payroll.Function.Description -  198 distinct values with some descriptions starting with # or letters 
+
+Payroll.Hours - has minimum of -26 hours and max of 280 hours, BusTrans and Bus are highest values
+
+Overtime.Amount - includes negative values to positive values (is this in hours?)
+
+Employee.ID - 6389 distinct ids
+
+## 2
+```{r, include = TRUE}
+summary(ot_fund)
+#recode from negative to 0
+ot_fund$Payroll.Hours <- ifelse(ot_fund$Payroll.Hours < 0, 
+                                0, ot_fund$Payroll.Hours)
+# or ot_fund$Payroll.Hours[ot_fund$Payroll.Hours < 0] <- 0
+summary(ot_fund$Payroll.Hours)
+
+ot_fund$Overtime.Amount <- ifelse(ot_fund$Overtime.Amount < 0,
+                                  0, ot_fund$Overtime.Amount)
+summary(ot_fund$Overtime.Amount)
+
+#winsorize
+ot_fund <- ot_fund %>% 
+  mutate(Payroll.Hours = winsorize(ot_fund$Payroll.Hours, probs = c(0,0.99)), 
+         Overtime.Amount = winsorize(ot_fund$Overtime.Amount, probs = c(0,0.99)))
+```
+
+The two meaningful columns are Payroll.Hours and Overtime.Amount. The above code recoded negative values to 0 in both columns. I winsorized with 0.97% of top observations from Payroll.Hours was replaced and 1% of top observations from Overtime.Amount was replaced.
+
+## 3
+```{r, include = TRUE}
+weather <- read_excel("/project2/ppha30531/axgao1/Weather Events Hol.xlsx")
+hrs <- read_csv("/project2/ppha30531/axgao1/hrs.csv")
+func_abs_related <- read_csv("/project2/ppha30531/axgao1/func_abs_related.csv")
+timekeep <- read_csv("/project2/ppha30531/axgao1/timekeep.csv")
+
+maketibble <- function(dataframe, column) {
+  tibble(
+    n_rows = nrow(dataframe),
+    start_date = min(dataframe[[column]]),
+    end_date = max(dataframe[[column]])
+  )
+}
+
+wtemp <- maketibble(weather, "OBSERVATION_DATE")
+hrstemp <- maketibble(hrs, "Calendar.Full.Date")
+ottemp <- maketibble(ot_fund, "Payroll.End.Date")
+timetemp <- maketibble(timekeep, "Calendar.Full.Date")
+functempt <- maketibble(func_abs_related, NA)
+
+functempt <- functempt %>%
+  mutate(start_date = ifelse(start_date == Inf, NA, NA),
+         end_date = ifelse(end_date == -Inf, NA, NA))
+
+codebook <- rbind(wtemp, hrstemp, ottemp, timetemp, functempt)
+
+#periodicity
+codebook <- codebook %>% 
+  mutate(periodicity = c("daily", "weekly", "weekly", "daily", "NA")) 
+
+codebook
+```
+
+weather is daily.
+hrs is weekly.
+ot_fund is weekly.
+timekeep is daily.
+func_abs_related is NA, since it does not have dates.
+
+## 4
+```{r, include = TRUE, error = FALSE, warning = FALSE}
+df_weather <- tibble("df_name" = c("weather"),
+                     "var_name" = c("OBSERVATION_DATE", 
+                                    "RAIN", 
+                                    "SNOW", 
+                                    "PRECIPITATION", 
+                                    "TYPE"),
+                     "share_missing" = c(mean(is.na(weather$OBSERVATION_DATE)), 
+                                         mean(is.na(weather$RAIN)), 
+                                         mean(is.na(weather$SNOW)),
+                                         mean(is.na(weather$PRECIPITATION)),
+                                         mean(is.na(weather$TYPE))),
+                      "mean" = c(mean(weather$OBSERVATION_DATE),
+                                 mean(as.numeric(weather$RAIN)),
+                                 mean(as.numeric(weather$SNOW)),
+                                 mean(as.numeric(weather$PRECIPITATION)),
+                                 mean(weather$TYPE)),
+                      "median" = c(median(weather$OBSERVATION_DATE),
+                                   median(as.numeric(weather$RAIN)),
+                                   median(as.numeric(weather$SNOW)),
+                                   median(as.numeric(weather$PRECIPITATION)),
+                                   median(weather$TYPE)))
+
+df_hrs <- tibble("df_name" = c("hrs"),
+                "var_name" = c("Fiscal.Year",
+                          "Calendar.Full.Date", 
+                          "Union.Description",
+                          "Employee.ID",
+                          "Hourly.Rate",
+                          "Payroll.Job.Title",
+                          "Payroll.Earning.Code.Description",
+                          "Payroll.Hours",
+                          "Regular...40.Total"),
+                "share_missing" = c(mean(is.na(hrs$Fiscal.Year)),
+                                    mean(is.na(hrs$Calendar.Full.Date)),
+                                    mean(is.na(hrs$Union.Description)),
+                                    mean(is.na(hrs$Employee.ID)),
+                                    mean(is.na(hrs$Hourly.Rate)),
+                                    mean(is.na(hrs$Payroll.Job.Title)),
+                                    mean(is.na(hrs$Payroll.Earning.Code.Description)),
+                                    mean(is.na(hrs$Payroll.Hours)),
+                                    mean(is.na(hrs$Regular...40.Total))),
+                "mean" = c(mean(as.numeric(hrs$Fiscal.Year)),
+                           mean(as.numeric(hrs$Calendar.Full.Date)),
+                           mean(hrs$Union.Description),
+                           mean(as.numeric(hrs$Employee.ID)),
+                           mean(as.numeric(hrs$Hourly.Rate)),
+                           mean(hrs$Payroll.Job.Title),
+                           mean(hrs$Payroll.Earning.Code.Description),
+                           mean(as.numeric(hrs$Payroll.Hours)),
+                           mean(as.numeric(hrs$Regular...40.Total))),
+                "median" = c(median(hrs$Fiscal.Year),
+                             median(hrs$Calendar.Full.Date),
+                             median(as.numeric(hrs$Union.Description)),
+                             median(as.numeric(hrs$Employee.ID)),
+                             median(as.numeric(hrs$Hourly.Rate)),
+                             mean(as.numeric(hrs$Payroll.Job.Title)),
+                             mean(as.numeric(hrs$Payroll.Earning.Code.Description)),
+                             median(as.numeric(hrs$Payroll.Hours)),
+                             median(as.numeric(hrs$Regular...40.Total))))
+                
+df_ot_fund <- tibble("df_name" = c("ot_fund"),
+                "var_name" = c("Fiscal.Year",
+                          "Payroll.End.Date", 
+                          "Payroll.Fund.Code.Category",
+                          "Payroll.RollUp.Department.Description",
+                          "Payroll.Job.Title",
+                          "Payroll.Function.Description",
+                          "Payroll.Hours",
+                          "Overtime.Amount",
+                          "Employee.ID",
+                          "payrollwinsor",
+                          "overtimewinsor"),
+                "share_missing" = c(mean(is.na(ot_fund$Fiscal.Year)),
+                                    mean(is.na(ot_fund$Payroll.End.Date)),
+                                    mean(is.na(ot_fund$Payroll.Fund.Code.Category)),
+                                    mean(is.na(ot_fund$Payroll.RollUp.Department.Description)),
+                                    mean(is.na(ot_fund$Payroll.Job.Title)),
+                                    mean(is.na(ot_fund$Payroll.Function.Description)),
+                                    mean(is.na(ot_fund$Payroll.Hours)),
+                                    mean(is.na(ot_fund$Overtime.Amount)),
+                                    mean(is.na(ot_fund$Employee.ID)),
+                                    mean(is.na(ot_fund$payrollwinsor)),
+                                    mean(is.na(ot_fund$overtimewinsor))),
+                "mean" = c(mean(as.numeric(ot_fund$Fiscal.Year)),
+                           mean(as.numeric(ot_fund$Payroll.End.Date)),
+                           mean(as.numeric(ot_fund$Payroll.Fund.Code.Category)),
+                           mean(ot_fund$Payroll.RollUp.Department.Description),
+                           mean(as.numeric(ot_fund$Payroll.Job.Title)),
+                           mean(as.numeric(ot_fund$Payroll.Function.Description)),
+                           mean(ot_fund$Payroll.Hours),
+                           mean(ot_fund$Overtime.Amount),
+                           mean(as.numeric(ot_fund$Employee.ID)),
+                           mean(as.numeric(ot_fund$payrollwinsor)),
+                           mean(as.numeric(ot_fund$overtimewinsor))),
+                "median" = c(median(ot_fund$Fiscal.Year),
+                             median(ot_fund$Payroll.End.Date),
+                             median(ot_fund$Payroll.Fund.Code.Category),
+                             median(as.numeric(ot_fund$Payroll.RollUp.Department.Description)),
+                             median(as.numeric(ot_fund$Payroll.Job.Title)),
+                             median(as.numeric(ot_fund$Payroll.Function.Description)),
+                             mean(as.numeric(ot_fund$Payroll.Hours)),
+                             mean(as.numeric(ot_fund$Overtime.Amount)),
+                             median(as.numeric(ot_fund$Employee.ID)),
+                             median(as.numeric(ot_fund$payrollwinsor)),
+                             median(as.numeric(ot_fund$overtimewinsor))))                     
+                     
+df_func_abs_related <- tibble("df_name" = c("func_abs_related"),
+                              "var_name" = c("Payroll.Function.Description",
+                                             "Absence.Non.Absence"),
+                              "share_missing" = c(mean(is.na(func_abs_related$Payroll.Function.Description)),
+                                                  mean(is.na(func_abs_related$Absence.Non.Absence))),
+                              "mean" = c(mean(as.numeric(func_abs_related$Payroll.Function.Description)),
+                                         mean(as.numeric(func_abs_related$Absence.Non.Absence))),
+                              "median" = c(median(func_abs_related$Payroll.Function.Description),
+                                           median(func_abs_related$Absence.Non.Absence)))
+                              
+df_timekeep <- tibble("df_name" = c("timekeep"),
+                "var_name" = c("Fiscal.Year",
+                          "Calendar.Year", 
+                          "Calendar.Month",
+                          "Calendar.Full.Date",
+                          "Type.of.Day",
+                          "Union.Description",
+                          "Employee.ID",
+                          "Job.Title",
+                          "Absence.Type",
+                          "TKS.Earnings.Description",
+                          "Total...of.Days"),
+                "share_missing" = c(mean(is.na(timekeep$Fiscal.Year)),
+                                    mean(is.na(timekeep$Calendar.Year)),
+                                    mean(is.na(timekeep$Calendar.Month)),
+                                    mean(is.na(timekeep$Calendar.Full.Date)),
+                                    mean(is.na(timekeep$Type.of.Day)),
+                                    mean(is.na(timekeep$Union.Description)),
+                                    mean(is.na(timekeep$Employee.ID)),
+                                    mean(is.na(timekeep$Job.Title)),
+                                    mean(is.na(timekeep$Absence.Type)),
+                                    mean(is.na(timekeep$TKS.Earnings.Description)),
+                                    mean(is.na(timekeep$Total...of.Days))),
+                "mean" = c(mean(as.numeric(timekeep$Fiscal.Year)),
+                           mean(as.numeric(timekeep$Calendar.Year)),
+                           mean(as.numeric(timekeep$Calendar.Month)),
+                           mean(timekeep$Calendar.Full.Date),
+                           mean(as.numeric(timekeep$Type.of.Day)),
+                           mean(as.numeric(timekeep$Union.Description)),
+                           mean(timekeep$Employee.ID),
+                           mean(timekeep$Job.Title),
+                           mean(as.numeric(timekeep$Absence.Type)),
+                           mean(as.numeric(timekeep$TKS.Earnings.Description)),
+                           mean(as.numeric(timekeep$Total...of.Days))),
+                "median" = c(median(timekeep$Fiscal.Year),
+                             median(timekeep$Calendar.Year),
+                             median(timekeep$Calendar.Month),
+                             median(as.numeric(timekeep$Calendar.Full.Date)),
+                             median(as.numeric(timekeep$Type.of.Day)),
+                             mean(as.numeric(timekeep$Union.Description)),
+                             mean(as.numeric(timekeep$Employee.ID)),
+                             median(as.numeric(timekeep$Job.Title)),
+                             median(as.numeric(timekeep$Absence.Type)),
+                             median(as.numeric(timekeep$TKS.Earnings.Description)),
+                             median(as.numeric(timekeep$Total...of.Days))))                              
+#codebook2 <- bind_rows(df_weather, df_hrs, df_ot_fund, df_func_abs_related, df_timekeep)
+```
+
+## 5
+OBSERVATION_DATE is the primary key in dataframe weather.
+Employee.ID combined with Payroll.Job.Title would be the primary key in dataframe hrs.
+Payroll.Function.Description is the primary key in dataframe func_abs_related.
+ot_fund doesnt seem to have a primary key (despite combining with other variables).
+timekeep doesnt seem to have a primary key (despite combining with other variables).
+
+The foreign keys are "TKS.Earnings.Description", "Union.Description", "Overtime.Amount", "Absence.Non.Absence", and all the variables in weather (except for OBSERVATION_DATE) are foreign keys.
+
+## 6
+Employee.ID, Job.Title, Years, Months, Full Dates, and Department/Descriptions are not primary keys and appear in timekeep, weather, ot_fund, and func_abs_related.
+
+## 7
+Please see uploaded jpeg file "transit_ps5_q4.7.jpeg" on GitHub.
+
+# 5 STA tidy hrs data
+
+## 1
+```{r}
+hrs %>% 
+  filter(Regular...40.Total > 8) %>% 
+  count(Payroll.Earning.Code.Description)
+```
+
+The different kinds of overtime are BUILT IN O.T., DIFFERENTIAL PAY OT, OVERTIME PAY (1.5), OVERTIME PAY (2.0), and REGULAR PAY.
+
+## 2
+```{r}
+hrs <- subset(hrs, select = -Regular...40.Total)
+
+hrs_tidy <- hrs %>% 
+  group_by(Employee.ID, Calendar.Full.Date) %>%
+  spread(key = Payroll.Earning.Code.Description, value = Payroll.Hours) %>%
+  summarise(builtinOT_sum = sum(`BUILT IN O.T.`, na.rm = TRUE),
+            diffpayOT_sum = sum(`DIFFERENTIAL PAY OT`, na.rm = TRUE),
+            overtime1.5_sum = sum(`OVERTIME PAY (1.5)`, na.rm = TRUE),
+            overtime2.0_sum = sum(`OVERTIME PAY (2.0)`, na.rm = TRUE),
+            regpay_sum = sum(`REGULAR PAY`, na.rm = TRUE))
+
+system.time(hrs_tidy <- hrs %>% 
+  group_by(Employee.ID, Calendar.Full.Date) %>%
+  spread(key = Payroll.Earning.Code.Description, value = Payroll.Hours) %>%
+  summarise(builtinOT_sum = sum(`BUILT IN O.T.`, na.rm = TRUE),
+            diffpayOT_sum = sum(`DIFFERENTIAL PAY OT`, na.rm = TRUE),
+            overtime1.5_sum = sum(`OVERTIME PAY (1.5)`, na.rm = TRUE),
+            overtime2.0_sum = sum(`OVERTIME PAY (2.0)`, na.rm = TRUE),
+            regpay_sum = sum(`REGULAR PAY`, na.rm = TRUE)))
+```
+
+The user time recorded is 28.963 and the system time 0.329 for the command to run. The user time is the CPU time recorded for executing the command and the system time is the CPU time recorded for the system for the call process.
+
+# 6 STA collapse timekeep data
+
+## 1
+```{r}
+timekeep %>% 
+  filter(Absence.Type == "Scheduled") %>% 
+  count(TKS.Earnings.Description) %>% 
+  arrange(desc(n))
+
+timekeep %>% 
+  filter(Absence.Type == "Unscheduled") %>% 
+  count(TKS.Earnings.Description) %>% 
+  arrange(desc(n))
+```
+
+For scheduled absences, the top 3 reasons are Vacation, Training, Suspension.
+For unscheduled absences, the top 3 reasons are FMLA Leave, Sick Leave, and Reported Work Injury.
+
+## 2
+```{r}
+timekeep_week <- timekeep %>% 
+  mutate(weeks = floor_date(Calendar.Full.Date, "week")) %>%
+  group_by(Employee.ID, weeks, Absence.Type) %>%
+  summarise(total_days = sum(Total...of.Days, na.rm = TRUE)) %>%
+  spread(key = Absence.Type, value = total_days)
+
+min(timekeep_week$weeks)
+```
+
+The minimum of the date in the new "weeks" column is 2010-12-26, which is correct because this captures the Scheduled and Unscheduled hours off logged on 2011-01-01 because 2011-01-01 is counted as part of the last week in 2010. The second count of a full week in the new "weeks" column is 2011-01-02 because the 2nd is the start of the first full week in 2011. 
+
+# 7 STA practice join
+
+## 1
+```{r}
+# create same "weeks" column in hrs_tidy to match with timekeep_week
+hrs_tidy <- hrs_tidy %>% 
+  mutate(weeks = floor_date(Calendar.Full.Date, "week")) %>%
+  group_by(Employee.ID, weeks)
+
+# hrs_tidy
+n_distinct(interaction(hrs_tidy$Employee.ID, hrs_tidy$weeks))
+
+n_distinct(hrs_tidy$Employee.ID)
+
+n_distinct(hrs_tidy$weeks)
+
+min(hrs_tidy$weeks)
+
+max(hrs_tidy$weeks)
+
+# timekeep_week
+n_distinct(interaction(timekeep_week$Employee.ID, timekeep_week$weeks))
+
+n_distinct(timekeep_week$Employee.ID)
+
+n_distinct(timekeep_week$weeks)
+
+min(timekeep_week$weeks)
+
+max(timekeep_week$weeks)
+```
+
+There are 1424031 employee-weeks in hrs_tidy.
+There are 8522 distinct employees in hrs_tidy. 
+There are 280 distinct weeks in hrs_tidy.
+The first week is 2011-06-26 in hrs_tidy.
+The last week is 2016-10-30 in hrs_tidy.
+
+There are 668697 employee-weeks in timekeep_week.
+There are 8718 distinct employees in timekeep_week. 
+There are 307 distinct weeks in timekeep_week.
+The first week is 2010-12-26 in timekeep_week.
+The last week is 2016-11-06 in timekeep_week.
+
+The first week that appears in both datasets is 2011-06-26. 
+The last week that appears in both datasets is 2016-10-30.
+
+## 2
+```{r}
+#filtering both datasets using between
+hrs_tidy <- hrs_tidy %>% 
+  filter(between(weeks, as.Date("2011-06-26"), as.Date("2016-10-30")))
+
+timekeep_week <- timekeep_week %>% 
+  filter(between(weeks, as.Date("2011-06-26"), as.Date("2016-10-30")))
+
+antijoin_result <- anti_join(timekeep_week, hrs_tidy, by = c("Employee.ID", "weeks"))
+
+nrow(antijoin_result)
+```
+
+I am going to use Employee.ID and weeks from the two datasets to do the antijoin. The result of the antijoin produced a dataframe of 211888 rows. These will be ignored when doing a left join on hrs_tidy next.
+
+## 3
+```{r}
+join_result <- left_join(hrs_tidy, timekeep_week, by = c("Employee.ID", "weeks"))
+
+n_distinct(interaction(join_result$Employee.ID, join_result$weeks))
+
+n_distinct(join_result$Employee.ID)
+
+join_result <-  join_result %>% 
+  mutate(logical = ifelse(is.na(Scheduled) & is.na(Unscheduled), 0, 1))
+# 0 means no absences (Scheduled or Unscheduled)
+
+join_result <- join_result %>% mutate(total_wkly_pay = sum(builtinOT_sum, 
+                                                           diffpayOT_sum, 
+                                                           overtime1.5_sum, 
+                                                           overtime2.0_sum, 
+                                                           regpay_sum, na.rm = TRUE))
+
+join_result %>% group_by(logical) %>% summarise(sum(total_wkly_pay))
+```
+
+There are 1424031 employee-weeks in the joined dataset join_result. There are 8522 distinct employees. The logical variable created designates 0 as having no absences and 1 as having at least one absence (regardless of Scheduled or Unscheduled). In weeks with no absences (logical = 0), the total weekly pay is 51152220. In weeks with at least 1 absence (logical = 1), the total weekly pay is 16172728.

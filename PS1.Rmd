@@ -1,0 +1,517 @@
+---
+title: "PS2"
+author: "Annie Gao"
+date: "1/11/2018"
+output: 
+  html_document:
+    number_sections: false
+---
+
+# Intro
+```{r import, warning=FALSE, include=TRUE}
+library(tidyverse)
+```
+
+# 1.2
+## 1
+For a line chart, use geom_line().
+For a boxplot, use geom_boxplot().
+For a histogram, use geom_histogram() or geom_bar().
+For an area chart, use geom_area().
+
+## 2
+```{r legend, message=FALSE, include=TRUE}
+ggplot(data = mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, color = drv),
+    show.legend = FALSE)
+```
+
+Show.legend = FALSE prevents the legend from displaying. Removing show.legend shows the legend on the side using the variable drv. It was used earlier in the chapter to show the distinctions between using different variable mappings.
+
+## 3
+The se argument in geom_smooth() gives the option to display the confidence interval around the points.
+
+## 4
+```{r same, include = TRUE}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point() + geom_smooth()
+
+ggplot() + 
+  geom_point(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_smooth(data = mpg, mapping = aes(x = displ, y = hwy))
+```
+
+These two graphs will look the same because the dataframe and mapping aesthetics are the same in the ggplot function and both geom_point and geom_smooth are using the same dataframe and settings.
+
+# 1.2.1
+## 1
+```{r geom, message=FALSE, warning=FALSE, include=TRUE}
+ggplot(data = diamonds) +
+  geom_pointrange(mapping = aes(x = cut, y = depth), 
+        stat = "summary",
+        fun.ymin = min,
+        fun.ymax = max,
+        fun.y = median)
+```
+
+The default geom associated with stat_summary() is geom_pointrange. To rewrite, specify the pointrange() geom and use stat = "summary". The ymin, ymax, and y = median are the same.
+
+## 2
+Geom_col creates columns from points and can be used to show values or statistics of the data. It can map values to the y aesthetic. Geom_bar displays bars whose height show the number of counts mapped to the x aesthetic.
+
+## 3
+geom_bar(stat = "identity")
+
+geom_bar(stat = "count")
+
+geom_bar(stat = "bin")
+
+geom_col(stat = "identity")
+
+The pairs all have a stat specification can be reversed. For example, we can use stat_count() with geom_bar as a parameter in stat_count().
+
+# 4
+Stat_smooth computes y (the predicted variable), ymin, ymax, and se. The parameters that control behavior is mapping, data, stat ("smooth"), position, method, formula, se, n, span, fullrange, level, method.args, na.rm, show.legend, and inherit.aes.
+
+## 5
+```{r proportion, include=TRUE}
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, y = ..prop..))
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, fill = color, y = ..prop..))
+
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, y = ..prop.., group = 1))
+```
+
+The specification of group = 1 is a dummy to indicate to group the x variables by each level of "cut" and compare each to the total of "cut". Since we indicated proportions for the y aesthetic, we need to using this grouping (by each level of "cut" against total) so that the y axis is in proportions instead of frequency. The first two graphs above just show the proportion within each level so each level of "cut"" is 100% itself and not as a proportion of total "cut".
+
+# 1.3
+## 1
+```{r plot, include=TRUE}
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + geom_point()
+
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + geom_jitter()
+```
+
+The graph shows datapoints close together and on top of each other. We cannot see the values of many points placed on top of each other. We can spread the points out by using geom_jitter().
+
+## 2
+The width and height parameters control the amount of jittering. The value is added to both sides, in positive and negative directions, of a datapoint so the total amount of jittering is doubled the values specified.
+
+## 3
+```{r jitter, include=TRUE}
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + geom_jitter()
+
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + geom_count()
+```
+
+Geom_count counts the number of datapoints at each location and then associates the counts with point sizes/areas. A legend can be displayed to show the relationship between point size and data points. Geom_jitter is useful for small data and works to spread out the datapoints. Both geoms work to clarify overlapping datapoints.
+
+## 4
+```{r box, include=TRUE}
+ggplot(data = mpg, mapping = aes(x = class, y = hwy)) + 
+  geom_boxplot(mapping = aes(colour = drv), position = "dodge")
+```
+
+Boxplots' default position is "dodge" and it is automatic when an aesthetic is a factor. It produces the same graph with or without position specification.
+
+# 1.4
+## 1
+```{r coord, include=TRUE}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity)) + coord_polar()
+```
+
+## 2
+Labs() allow us to put labels on an aesthetic, titles to a graph, or captions.
+
+## 3
+Coord_map() shows a portion of the earth on a 2d plane using a project from the mapproj package. This does not preserve straight lines while coord_quickmap() preserves straight lines so it works best for small areas near the equator.
+
+## 4
+```{r coordmap, include = TRUE}
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_point() + geom_abline() + coord_fixed()
+```
+
+Coord_fixed() shows the city mileage to highway mileage as points from our dataset. Geom_abline() gives a straight line specified by a slope and intercept. This geom provides a 1:1 comparison for our point plot. This comparison shows that in our dataset, cars get more highway mileage per city mileage. 
+
+# 4.4
+## 1
+```{r doesntowork, include=TRUE}
+my_variable <- 10
+#my_varıable
+```
+
+The code does not work because my_variable in the second line is not the same variable as the first. The second variable does not exist.
+
+## 2
+library(tidyverse)
+
+ggplot(data = mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy))
+
+filter(mpg, cyl == 8) 
+filter(diamonds, carat > 3)
+
+## 3
+A list of keyboard shortcuts appear. From menu -> Tools -> Keyboard Shortcuts Help.
+
+# 1.6
+## 1
+```{r nycflights, include=TRUE}
+library(nycflights13)
+```
+
+### 1
+```{r delay, include=TRUE}
+arrdelay <- filter(flights, arr_delay >= 120)
+```
+
+10200 flights with 2 or more hours of arrival delay.
+
+### 2
+```{r houston, include = TRUE}
+houston <- c("IAH", "HOU")
+houstindest <- filter(flights, dest %in% houston)
+```
+
+9313 flights to Houston at destinations "IAH" or "HOU".
+
+### 3
+```{r carriers, include = TRUE}
+carriers <- c("UA", "AA", "DL")
+threecarriers <- filter(flights, carrier %in% carriers)
+```
+
+139504 flights operated by UA, AA, and DL.
+
+### 4
+```{r summer, include = TRUE}
+summermonths <- c("7", "8", "9")
+summerflights <- filter(flights, month %in% summermonths)
+```
+
+86326 flights in July, August, and September.
+
+### 5
+```{r arrdelay, include = TRUE}
+arrlate <- filter(flights, arr_delay > 120 & dep_delay <= "0")
+```
+
+29 flights arrived 2 hours late but didnt leave late.
+
+### 6
+```{r makeup, include = TRUE}
+diff <- flights$sched_arr_time - flights$arr_time
+delayed <- filter(flights, dep_delay >= "60" & diff > "30")
+```
+
+2348 flights delayed by at least an hour but made up more than 30 mins in flight.
+
+### 7
+```{r bewteen, include = TRUE}
+between <- filter(flights, dep_time >= "0000" & dep_time <= "600")
+```
+
+239607 flights departed between midnight and 6am inclusive.
+
+## 2
+```{r betweenshortned, include = TRUE}
+between1 <- filter(flights, between(month, 7, 9))
+```
+
+We can try this on the months question because it involved only one variable with multiple values. We get the same number of flights. Between creates lower and upper bounds for a value.
+
+## 3
+```{r missing, include = TRUE}
+summary(flights$dep_time) #or
+summary(flights)
+```
+
+8255 NAs from dep_time. Dep_delay, arr_time, arr_delay, and air_time have missing values. Some of these flights could be canceled flights.
+
+## 4
+```{r NA, include = TRUE}
+NA^0
+NA|TRUE
+FALSE & NA
+```
+
+Anything raised to 0 is 1. The pipe | means "or" so NA or TRUE will return TRUE because we can have either or. We cant have FALSE and NA since there is a FALSE so that statement itself will return FALSE.
+
+# 1.7
+
+## 1
+```{r reverse NA, include=TRUE}
+arrange(flights, desc(is.na(arr_delay))) %>% select(arr_delay)
+```
+
+All the NAs are moved to the top. The display limit only shows NAs.
+
+## 2
+```{r sort flights, include = TRUE}
+arrange(flights, desc(arr_delay))
+```
+
+Sort in descending order so the most delayed flights by arrival are on top.
+
+## 3
+```{r left earliest, include = TRUE}
+arrange(flights, dep_delay)
+```
+
+Dep_delay as negative values left earliest relative to scheduled departures. Not in descending order because the variable values start with the most negative numbers and those are the ones that departed the earliest relative to scheduled departures.
+
+## 4
+```{r shortes, include = TRUE}
+new <- mutate(flights, timeinair = ifelse((arr_time - dep_time < 0),
+    2400+(arr_time - dep_time), arr_time - dep_time))
+
+arrange(new, timeinair)
+```
+
+If flights took off at 11:59 or 23:59, we would take the difference to find time in the air, but it would be negative because arrival time is smaller than departure time. We would then add another day to it, represented by 2400. The other case is that the time differences are not negative. We would then sort with ascending order to see the flights with shortest time in the air.
+
+# 1.8
+## 1
+```{r select, include = TRUE}
+select(flights, dep_time, dep_delay, arr_time, arr_delay)
+#select(flights, "dep_time", "dep_delay", "arr_time", "arr_delay")
+#select(flights, c(dep_time, dep_delay, arr_time, arr_delay))
+```
+
+3 ways to select the 4 columns and display the same thing.
+
+## 2
+```{r multiple times, include = TRUE}
+select(flights, dep_time, dep_time, dep_time)
+```
+
+We would get the variable's column once regardless of how many times the name is repeated.
+
+## 3
+```{r one of, include = TRUE}
+vars <- c("year", "month", "day", "dep_delay", "arr_delay")
+select(flights, one_of(vars))
+```
+
+We can select variables based off names. One_of selects the variables in the vector and gives values associated with that variable. It is helpful because if you want to select many variables, it would be easier to just use one_of so we select all the variables at once.
+
+## 4
+```{r time, include=TRUE}
+select(flights, contains("TIME"))
+#to change default
+select(flights, contains("TIME", ignore.case = FALSE))
+variable.names(flights)
+```
+
+Code is not surprising since it returns all the columns with variable names that include "time" in, but its ability to recognize the words without case sensitivities is surprising. By default, select ignores case. If it ignores case, it doesn't return anything because no variables have names with capital letters in them.
+
+# 1.9
+## 1
+```{r convert times, include = TRUE}
+mutate(flights, dep_time_new = (dep_time %/% 100) * 60 + 
+         (dep_time %% 100))
+
+mutate(flights, sched_dep_time_new = (sched_dep_time %/% 100) * 60 +
+         (sched_dep_time %% 100))
+```
+
+We apply the conversion to both variables. We use integer division to get the number of hours and then multiply that by 60, which gives the number of minutes from observed hours. We then add the minutes that was originally part of the original hour:minute format using modulus division. This conversion gives total minutes since midnight.
+
+## 2
+Arr_time is in hour:min format. Air_time is in number of minutes. Dep_time is in hour:min. Expect them to be in the same format. Need to convert one of them (either arr_time or dep_time) so they're in the same format in order to find air_time. Calcair_time is the new calculated air_time that should be the same as air_time.
+
+## 3
+```{r convert airtimes, include = TRUE}
+#flights$air_time
+flights <- mutate(flights, dep_time_new = (dep_time %/% 100) * 60 + 
+         (dep_time %% 100), arr_time_new = (arr_time %/% 100) * 60 + 
+         (arr_time %% 100))
+
+flights <- mutate(flights, calcair_time = dep_time_new - arr_time_new)
+
+head(ifelse(flights$calcair_time == flights$air_time, "yes", "no"), 10)
+
+```
+
+I only printed 10 rows but calcair_time generally does not equal the original air time in the dataset.
+
+## 4
+```{r error tolerance, include = TRUE}
+head(ifelse(flights$calcair_time == flights$air_time +- 15 , "yes", "no"), 10)
+```
+
+An error tolerance can be 15 minutes because the DOT counts departing 15 minutes later than original scheduled time to be "delayed." I only printed the first 10 rows but a large fraction of calculated air_time is still different from the original air_time.
+
+## 5
+```{r dep delay, include = TRUE}
+mutate(flights, sched_dep_time = (sched_dep_time %/% 100) * 60 +
+         (sched_dep_time %% 100), dep_time = (dep_time %/% 100) * 60 +
+         (dep_time %% 100)) 
+
+#ifelse(flights$dep_time - flights$sched_dep_time == flights$dep_delay, "yes", "no")
+```
+
+Dep_delay should be equal to dep_time - sched_dep_time after reformatting. There are a lot more observations where dep_delay does equal calculated departure delay.
+
+## 6
+```{r top10, include = TRUE}
+filter(flights, min_rank(desc(dep_delay)) <= 10)
+```
+
+I used min_rank and then used descending so the 10 longest delays are on top. I would use the pipe operator, %>%, to then rank additional columns to break the tie in dep_delay.
+
+## 7
+```{r sequence, include = TRUE}
+1:3 + 1:10
+```
+
+It generates a vector that is a result of adding two vectors (1:3) and (1:10) and repeating on the shorter vector and adding the 3 values to the longer vector.
+
+# Public Sector Application: Flight Data
+## 2.1
+```{r BTS, warning=FALSE, include=TRUE}
+chi.flights_Jan <- read_csv("Jan.csv")
+chi.flights_Feb <- read_csv("Feb.csv")
+chi.flights_March <- read_csv("March.csv")
+chi.flights_April <- read_csv("April.csv")
+chi.flights_May <- read_csv("May.csv")
+chi.flights_June <- read_csv("June.csv")
+chi.flights_July <- read_csv("July.csv")
+chi.flights_Aug <- read_csv("Aug.csv")
+chi.flights_Sept <- read_csv("Sept.csv")
+chi.flights_Oct <- read_csv("Oct.csv")
+chi.flights_Nov <- read_csv("Nov.csv")
+chi.flights_Dec <- read_csv("Dec.csv")
+
+totflights <- bind_rows(chi.flights_Jan, chi.flights_Feb, chi.flights_March, chi.flights_April, chi.flights_May, chi.flights_June, chi.flights_July, chi.flights_Aug, chi.flights_Sept, chi.flights_Oct, chi.flights_Nov, chi.flights_Dec)
+```
+
+I saved my dataframe as totflights (total flights), not chiflights.
+
+# 2.2
+## 1
+There is no unique identifier for each flight in the dataset.
+
+## 2
+```{r desc methods, warning=FALSE, include=TRUE}
+print(totflights) #shows the first 10 rows
+head(totflights) #shows the first 6 rows
+str(totflights) #compactly displays internal structure of dataframe
+glimpse(totflights) #redundant with str()
+#View(totflights) #opens new viewer to see entire dataframe
+summary(totflights) #gives summary statistics of all variables
+```
+
+### 2.1
+Nonredundant methods are str(totflights), View(totflights), and summary(totflights).
+
+### 2.2
+From str(totflights), we can see all the types of each variable. From View(totflights), we can see the entire dataframe. Summary(totflights) gives quarter statistics of each variable by values in the variable.
+
+### 2.3
+utils::str(object, ...)
+utils::View(object, title)
+base::summary(object, ...)
+
+Above are the nonredundant methods in their generic or default form.
+
+# 2.3
+## 1
+```{r testthat, warning=FALSE, include=TRUE}
+library(testthat)
+test_that("test", expect_equal(nrow(totflights),675822))
+```
+
+It doesn't print "test failed" so it passed.
+
+## 2
+```{r check, warning=FALSE, include=TRUE}
+#View(select(totflights, ORIGIN_STATE_NM, DEST_STATE_NM))
+
+"Illinois" %in% totflights$ORIGIN_STATE_NM | "Illinois" %in%
+          totflights$DEST_STATE_NM
+
+ifelse (("Illinois" %in% totflights$ORIGIN_STATE_NM | "Illinois" %in%
+          totflights$DEST_STATE_NM), print("Yes"), print("No"))
+```
+
+The second test will print "Yes" if Illinois is in either column, which is what we want. I tested using other words to substitute for "Illinois" changing only one column at a time, which still prints "Yes", and tested substituting the words for both columns and it prints "No" when both columns are not "Illinois". So Illinois is in either columns for all rows.
+
+## 3
+```{r drop flights, warning=FALSE, include=TRUE}
+totflights <- filter(totflights, totflights$DEST != "ORD" &
+                  totflights$DEST != "MDW")
+```
+
+Dropping flights with DEST to ORD or MDW, 344131 flights are left.
+
+## 4
+```{r among, warning=FALSE, include=TRUE}
+newflights <- filter(totflights, totflights$ORIGIN != "ORD" & 
+                       totflights$ORIGIN != "MDW") # does not have ORD or MDW in ORIGIN or DEST.
+
+group_by(newflights, ORIGIN) %>% summarise(count=n()) %>% 
+  arrange(desc(count)) 
+# 5 most common origins
+group_by(newflights, DEST) %>% summarise(count=n()) %>% 
+  arrange(desc(count)) # 5 most common destinations.
+
+group_by(newflights, ORIGIN, DEST, ORIGIN_CITY_NAME, DEST_CITY_NAME) %>%
+  count(ORIGIN) %>% arrange(desc(n)) #cities
+```
+
+There are 12240 flights not to or from Ohare or MDW. 
+Among these flights, the five most common origins are ATL, PIA, MLI, BMI, and DTW. 
+The five most common destinations are the same as origins.
+These cities are Atlanta, GA; Peoria, IL, Bloomington/Normal, IL, Moline, IL, and Detroit, Michigan. Either origins or destinations are inside Illinois because our original dataset only include flights that are from or two Illinois by decision. We see that all the flights either fly to or from Atlanta, GA. This makes sense because the other location for all these flights are either to or from a small airport since we excluded OHare and Midway. Flights in and out of small airports in Illinois would be expected to go to the largest airport hub in the US.
+
+## 5
+```{r readinagain, warning=FALSE, include=TRUE}
+chi.flights_Jan <- read_csv("Jan.csv")
+chi.flights_Feb <- read_csv("Feb.csv")
+chi.flights_March <- read_csv("March.csv")
+chi.flights_April <- read_csv("April.csv")
+chi.flights_May <- read_csv("May.csv")
+chi.flights_June <- read_csv("June.csv")
+chi.flights_July <- read_csv("July.csv")
+chi.flights_Aug <- read_csv("Aug.csv")
+chi.flights_Sept <- read_csv("Sept.csv")
+chi.flights_Oct <- read_csv("Oct.csv")
+chi.flights_Nov <- read_csv("Nov.csv")
+chi.flights_Dec <- read_csv("Dec.csv")
+
+totflights1 <- bind_rows(chi.flights_Jan, chi.flights_Feb, chi.flights_March, chi.flights_April, chi.flights_May, chi.flights_June, chi.flights_July, chi.flights_Aug, chi.flights_Sept, chi.flights_Oct, chi.flights_Nov, chi.flights_Dec)
+
+newflights1 <- filter(totflights1, totflights1$DEST == "MDW" | totflights1$DEST == "ORD" | totflights1$ORIGIN == "MDW" | totflights1$ORIGIN == "ORD") #flights to or from Midway or Ohare only
+```
+
+Since we're limiting flights as to or from Midway or Ohare, it should have almost, if not all, the flights in the original total flights dataframe. It should be close to 675,822, which it is, at 663,582 flights. The difference of 12,240 seen earlier might be due to a small number of flights into Illinois using private or much smaller Illinois airports that are not Ohare or Midway.
+
+http://www.chicagotribune.com/news/ct-ohare-midway-flights-down-0127-20170126-story.html
+Flights numbers at OHare: 867,635
+Flight numbers at Midway: 253,046
+Ohare and Midway Total: 1,120,681 (Chicago Tribune)
+
+http://www.flychicago.com/SiteCollectionDocuments/Business/FactAndFigures/AirTraffic/1216%20ORD%20SUMMARY.pdf
+Ohare Total: 867,635
+
+http://www.flychicago.com/SiteCollectionDocuments/Business/FactAndFigures/AirTraffic/1216%20MDW%20SUMMARY.pdf
+Midway Total: 253,046
+
+Ohare and Midway Total: 867,635 + 253,046 = 1,120,681 (Fly Chicago, Chicago Department of Aviation)
+
+The numbers from the two sources agree with each other but the BTS dataset does not match the sources. A possible reason is that the sources from Chicago Tribune and Fly Chicago are both from the Department of Aviation and report total aircraft operations, comprised of air carrier, general aviation, and others from both domestic and international operations. The BTS data does not clearly specify reach and types of operations. However, since the BTS values are smaller than Chicago's DAA, it is possible that BTS is just measuring passenger flights/air carriers.
+
+## 6
+```{r airlines at ORD and MDW, warning=FALSE, include=TRUE}
+filter(newflights1, ORIGIN == "ORD") %>% group_by(CARRIER) %>% count(CARRIER) %>% arrange(desc(n))
+filter(newflights1, ORIGIN == "MDW") %>% group_by(CARRIER) %>% count(CARRIER) %>% arrange(desc(n))
+```
+
+From online sources, United Airlines, American Airlines, and Delta Air Lines are the largest airlines servicing Ohare. Southwest Airlines, Delta Air Lines, and Porter Airlines are the largest airlines servicing Midway.
+
+From our BTS dataset, UA (United), AA (American), and OO (American Eagle/United Express) are the top 3 airlines at OHare with the most number of flights. WN (Southwest), DL (Delta), and EV (ExpressJet) are the top 3 airlines at Midway with the most number of flights. Online sources may be calculating airline operations by enplanement at each airport while the BTS dataset may be counting other usages such as cargo or general aviation. Representation of airline name and corporate ownership may also result in differences in recording. 

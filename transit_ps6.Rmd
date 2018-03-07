@@ -1,0 +1,368 @@
+---
+author: Annie Gao
+title: "transit_ps6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+#install.packages("statar")
+library(statar)
+#install.packages("readxl")
+library(readxl)
+library(tibble)
+library(lubridate)
+#install.packages("zoo")
+library(zoo)
+```
+
+```{r echo=TRUE, warning=FALSE}
+func_abs_related <- read_csv("/project2/ppha30531/axgao1/func_abs_related.csv")
+hrs <- read_csv("/project2/ppha30531/axgao1/hrs.csv")
+ot_fund <- read_csv("/project2/ppha30531/axgao1/ot_fund.csv")
+timekeep <- read_csv("/project2/ppha30531/axgao1/timekeep.csv")
+weather <- readxl::read_excel("/project2/ppha30531/axgao1/Weather Events Hol.xlsx")
+```
+
+#Problem Set 5 Solutions
+
+```{r, echo = FALSE, include = FALSE}
+require(statar)
+ot_fund$Payroll.Hours <- winsorize(ot_fund$Payroll.Hours, probs=c(0,0.99))
+ot_fund$Overtime.Amount <- winsorize(ot_fund$Overtime.Amount, probs=c(0,0.99))
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+df_list <- list(func_abs_related, hrs, ot_fund, timekeep, weather)
+name <- c('func_abs_related', 'hrs', 'ot_fund', 'timekeep', 'weather')
+dfs = data.frame(name)
+
+num_rows <- unlist(lapply(df_list, nrow))
+dfs$num_rows <- num_rows
+
+start_date <- as.Date(c(NA,
+                        min(as.Date(hrs$Calendar.Full.Date)),
+                        min(as.Date(ot_fund$Payroll.End.Date)), 
+                        min(as.Date(timekeep$Calendar.Full.Date)),
+                        min(as.Date(weather$OBSERVATION_DATE))),
+                      origin="1970-01-01")
+dfs$start_date <- start_date
+
+
+end_date <- as.Date(c(NA,
+                      max(as.Date(hrs$Calendar.Full.Date)),
+                      max(as.Date(ot_fund$Payroll.End.Date)),
+                      max(as.Date(timekeep$Calendar.Full.Date)),
+                      max(as.Date(weather$OBSERVATION_DATE))),
+                    origin="1970-01-01")
+dfs$end_date <- end_date
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+sum_df <- function (df, name) {
+  df_name <- rep(name, length(names(df)))
+  variable <- names(df)
+  share_missing <- unlist(lapply(df, function(x) floor(mean(is.na(x))*1000)/1000))
+  mean <- unlist(lapply(df, function(x) mean(x)))
+  median <- unlist(lapply(df, function(x) median(x)))
+  return(data.frame(df_name, variable, share_missing, mean, median))
+}
+
+sum_far <- sum_df(func_abs_related, 'func_abs_related')
+sum_hrs <- sum_df(hrs, 'hrs')
+sum_otf <- sum_df(ot_fund, 'ot_fund')
+sum_tk <- sum_df(timekeep, 'timekeep')
+sum_w <- sum_df(weather, 'weather')
+
+options("scipen"=100, "digits"=3)
+bind_rows(sum_far, sum_hrs, sum_otf, sum_tk, sum_w) 
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+require(lubridate)
+hrs_tidy <- hrs %>% 
+  select(-Regular...40.Total) %>%
+  mutate(week = cut(Calendar.Full.Date, "week"))
+
+hrs_tidy <- hrs_tidy %>% 
+  rename(earn_cd = Payroll.Earning.Code.Description) %>%
+  mutate(earning_code = ifelse(earn_cd == "BUILT IN O.T.","hrs_built_in_ot",
+                               ifelse(earn_cd == "OVERTIME PAY (1.5)","hrs_ot_15",
+                                      ifelse(earn_cd == "OVERTIME PAY (2.0)", "hrs_ot_20",
+                                             ifelse(earn_cd == "DIFFERENTIAL PAY OT", "diff_pay", "hrs_reg_pay"))))) %>%
+  select(-earn_cd) %>% spread(earning_code,Payroll.Hours) 
+
+# to account for employees who have multiple job titles
+hrs_tidy <- hrs_tidy %>% 
+  group_by(week, Employee.ID) %>% 
+  summarise(hrs_built_in_ot = sum(hrs_built_in_ot, na.rm = TRUE),
+            hrs_ot_15 = sum(hrs_ot_15, na.rm = TRUE),
+            hrs_ot_20 = sum(hrs_ot_20, na.rm = TRUE),
+            diff_pay = sum(diff_pay, na.rm = TRUE),
+            hrs_reg_pay = sum(hrs_reg_pay, na.rm = TRUE),
+            Hourly.Rate = max(Hourly.Rate, na.rm=TRUE))
+```
+
+```{r, echo=FALSE, warning=FALSE, include = FALSE}
+top3_sched <- timekeep %>% 
+  filter(Absence.Type=='Scheduled') %>%
+  count(TKS.Earnings.Description, sort = TRUE) %>%
+  head(3)
+
+top3_unsched <- timekeep %>% 
+  filter(Absence.Type=='Unscheduled') %>%
+  count(TKS.Earnings.Description, sort = TRUE) %>%
+  head(3)
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+tk <- timekeep %>% spread(Absence.Type,Total...of.Days, fill = 0)
+timekeep_week <- tk %>%
+  group_by(week = cut(Calendar.Full.Date, "week"), Employee.ID) %>%
+  summarise(Unscheduled = sum(Unscheduled), Scheduled = sum(Scheduled))
+
+timekeep_week$Total.Absences <- timekeep_week$Unscheduled + timekeep_week$Scheduled
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+ht_emp_weeks <- nrow(hrs_tidy)
+hrs_tidy$week <- as.Date(hrs_tidy$week)
+
+timekeep_emp_weeks <- nrow(timekeep_week)
+timekeep_week$week <- as.Date(timekeep_week$week)
+
+week_intersect <- intersect(hrs_tidy$week, timekeep_week$week)
+
+first_week <- min(week_intersect)
+last_week <- max(week_intersect)
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+hrs_tidy_week <- hrs_tidy %>% filter(between(week, first_week, last_week))
+hrs_tidy_week$week <- as.Date(hrs_tidy_week$week)
+timekeep_week <- timekeep_week %>% filter(between(week, first_week, last_week))
+timekeep_week$week <- as.Date(timekeep_week$week)
+```
+
+```{r echo=FALSE, warning=FALSE, include = FALSE}
+employee_weeks <- left_join(hrs_tidy_week, timekeep_week, by = c("Employee.ID", "week"))
+
+employee_weeks$Total.Absences[is.na(employee_weeks$Total.Absences)] <- 0
+
+employee_weeks$logical <- ifelse(employee_weeks$Total.Absences>0, 1, 0)
+
+employee_weeks$hrs_built_in_ot[is.na(employee_weeks$hrs_built_in_ot)] <- 0
+employee_weeks$hrs_ot_15[is.na(employee_weeks$hrs_ot_15)] <- 0
+employee_weeks$hrs_ot_20[is.na(employee_weeks$hrs_ot_20)] <- 0
+employee_weeks$diff_pay[is.na(employee_weeks$diff_pay)] <- 0
+employee_weeks$hrs_reg_pay[is.na(employee_weeks$hrs_reg_pay)] <- 0
+```
+
+
+
+#PROBLEM SET 6 BEGINNING
+
+#3 STA Insufficient headcount
+
+##1
+```{r}
+abs_ot_funcdescr <- inner_join(ot_fund, func_abs_related, 
+                               by = c("Payroll.Function.Description")) %>%
+  select(Fiscal.Year, 
+         Absence.Non.Absence,
+         Payroll.RollUp.Department.Description, 
+         Payroll.Job.Title, 
+         Payroll.Function.Description, 
+         Payroll.Hours, 
+         Overtime.Amount, 
+         Employee.ID)
+
+abs_ot_funcdescr %>% 
+  filter(Fiscal.Year == 2016 & Absence.Non.Absence == "Absence Related") %>%
+  group_by(Payroll.RollUp.Department.Description) %>%
+  summarise(total_dollars = sum(Overtime.Amount)) %>%
+  arrange(desc(total_dollars)) %>%
+  head(5)
+```
+
+The departments billing the most absence-related overtime overall in dollar terms are BusTrans, Heavy Rail, BusMaint, Rail Mntnc, and Light Rail.
+
+##2
+```{r, error = TRUE, warning = FALSE}
+ot_dept_abs <- inner_join(hrs, abs_ot_funcdescr, by = c("Employee.ID", "Payroll.Job.Title"))
+
+ot_dept_abs %>%
+  group_by(Payroll.RollUp.Department.Description, Absence.Non.Absence) %>%
+  summarise(ot_hrs = sum(Payroll.Hours.x, na.rm = TRUE)) %>%
+  mutate(prop_abs_OT = ot_hrs/sum(ot_hrs)) %>%
+  arrange(desc(prop_abs_OT)) %>%
+  head(3)
+```
+
+The top 3 departments working the highest proportion of their hours as absence-related overtime are AFC1.0, Cnstr Mgmt, and Constr E&M. These departments worked all of their hours as absence-related overtime. This approach could be slightly incorrect because not all of the Payroll.Function.Description are matched in the hrs dataframe resulting in possible NAs. 
+
+#4 STA Shenanigans
+
+##1
+```{r}
+mean(employee_weeks$logical)
+```
+
+The share of employee-weeks with an absence is 28.8 percent. This estimate is extremely high since external benchmarks show absence rates to be below 5%.
+
+##2
+```{r}
+#build double dip binary indicator
+employee_weeks$all_ot <- employee_weeks$hrs_built_in_ot + 
+  employee_weeks$hrs_ot_15 + 
+  employee_weeks$hrs_ot_20 + 
+  employee_weeks$diff_pay +
+  employee_weeks$hrs_reg_pay
+
+employee_weeks$dbldip <- ifelse(employee_weeks$logical == 1 & 
+                                  employee_weeks$all_ot > 0, 1, 0)
+
+#setup to filter on year
+employee_weeks$year <- year(employee_weeks$week)
+
+employee_weeks %>% 
+  filter(year == 2015) %>% 
+  group_by(Employee.ID) %>% 
+  summarise(weeks_worked = n(), total_dbldip_emp = sum(dbldip)) %>% #weeks_worked measures how many times each employee showed by row = number of weeks worked
+  filter(weeks_worked >= 26) %>% 
+  mutate(share_weeks_dbldip = total_dbldip_emp/weeks_worked) %>%
+  arrange(desc(share_weeks_dbldip)) %>%
+  head(5)
+```
+
+The top 5 employees with the highest share of weeks double-dipping are Employee 8990, 9743, 14578, 15440, and 15747. They all have 100% double dipping rates. For all the 26 weeks or more that they worked, they doubled dipped in every week they worked.
+
+#5 STA Snow
+
+##1
+```{r}
+snow_storm <- weather %>%
+  mutate(sum = PRECIPITATION + lag(PRECIPITATION)) %>%
+  filter(TYPE == "S") %>%
+  arrange(desc(sum)) %>%
+  head(3)
+
+snow_storm$name <- c("Storm1", "Storm2", "Storm3")
+```
+
+Using lag, the three biggest snowstorm dates as the first date are 2011-02-26, 2011-01-12, and 2013-02-09. The precipitation from these dates are sums of the previous date and the date shown for a full 48 hour span. For 2011-02-26, it seems that the day after (the 27th) had the largest accumulation.
+
+##2
+```{r}
+#get all absences on each day and then filter out dates of interest and create range around them
+snow_absence <- timekeep %>%
+  group_by(Calendar.Full.Date) %>%
+  summarise(tot_absence = sum(Total...of.Days)) %>%
+  filter(between(Calendar.Full.Date, as.Date("2011-02-26") - days(5), 
+                 as.Date("2011-02-26") + days(5)) |
+          between(Calendar.Full.Date, as.Date("2011-01-12") - days(5), 
+                  as.Date("2011-01-12") + days(5)) |
+          between(Calendar.Full.Date, as.Date("2013-02-09") - days(5), 
+                  as.Date("2013-02-09") + days(5)))
+
+#first name ranges by date of storm
+snow_absence <- snow_absence %>% 
+  mutate(storm_dates = ifelse(between(Calendar.Full.Date, as.Date("2011-02-26") - days(5), 
+                                as.Date("2011-02-26") + days(5)), "2011-02-26",
+                              ifelse(between(Calendar.Full.Date, as.Date("2011-01-12") - days(5), 
+                                as.Date("2011-01-12") + days(5)), "2011-01-12", "2013-02-09"))) 
+
+#then name storms for group/color for plotting
+snow_absence$names <- ifelse(snow_absence$storm_dates == "2011-02-26", "Storm1",
+                             ifelse(snow_absence$storm_dates == "2011-01-12", "Storm2", 
+                                    "Storm3"))
+
+#create range for plotting x axis
+snow_absence <- snow_absence %>% 
+  mutate(dates_range = Calendar.Full.Date - as.Date(storm_dates))
+
+#plot
+ggplot(snow_absence, aes(x = dates_range, y = tot_absence)) +
+  geom_line(aes(group = names, color = names))
+```
+
+##3
+```{r}
+#from original weather df, find total precipitation for each possible week
+#that 3 storms coud have occurred
+weather_storm_weeks <- weather %>%
+  mutate(poss_week = floor_date(OBSERVATION_DATE, unit = "week")) %>%
+  group_by(poss_week) %>%
+  summarise(tot_precip = sum(PRECIPITATION, na.rm = TRUE)) 
+
+#create vector of week the 3 storms occurred on
+storm_weeks_vec <- c(floor_date(as.Date("2011-02-26"), "week"),
+                     floor_date(as.Date("2011-01-12"), "week"),
+                     floor_date(as.Date("2013-02-09"), "week"))
+
+#create indicator for whether storm occurred in that week
+weather_storm_weeks <- weather_storm_weeks %>% 
+  mutate(week_w_storm = ifelse(as.Date(poss_week) %in% storm_weeks_vec, 1, 0))
+
+#get months of all weeks and filter out Jan without precipitation
+#or week storm occurred
+weather_storm_weeks <- weather_storm_weeks %>%
+  mutate(month = month(poss_week)) %>%
+  filter((month == 1  & tot_precip == 0) | week_w_storm == 1) %>%
+  mutate(storm_week = as.Date(poss_week))
+
+#find weeks in otfund that are same weeks of storms and join two dfs
+ot_fund_weeks <- ot_fund %>%
+  mutate(weeks = floor_date(Payroll.End.Date, unit = "week"))
+  
+storm_weeks_ot <- left_join(weather_storm_weeks, ot_fund_weeks, 
+                            by = c("storm_week" = "weeks")) 
+
+storm_weeks_ot %>% 
+  group_by(storm_week, week_w_storm) %>%
+  summarise(tot_ot_amt = sum(Overtime.Amount))
+```
+
+Overtime costs in weeks of snowstorm are $1233006 for the week of 2013-02-03. 
+
+##4
+```{r}
+#days of storm
+#2011-02-26
+#2011-01-12
+#2013-02-09
+
+#above
+storm_weeks_vec <- c(floor_date(as.Date("2011-02-26"), "week"),
+                     floor_date(as.Date("2011-01-12"), "week"),
+                     floor_date(as.Date("2013-02-09"), "week"))
+
+#convert weeks to dates in week and merge vector in employee_weeks
+days_vec1 <- seq(as.Date("2011-02-20"), as.Date("2011-02-27"), by = "days")
+days_vec2 <- seq(as.Date("2011-01-09"), as.Date("2011-01-16"), by = "days")
+days_vec3 <- seq(as.Date("2013-02-03"), as.Date("2013-02-10"), by = "days")
+days_vec <- as.vector(rbind(days_vec1, days_vec2, days_vec3))
+
+#convert weeks to poss_weeks to match storm weeks
+employee_weeks$poss_weeks <- floor_date(employee_weeks$week, "week")
+
+#creates new df where all employee info pertain to storm weeks
+employee_weeks_storm <- employee_weeks %>%
+  group_by(poss_weeks) %>%
+  mutate(week_indicator = ifelse(poss_weeks %in% days_vec, 1, 0)) %>%
+  filter(week_indicator == 1)
+
+#group_by
+employee_weeks_storm %>%
+  group_by(poss_weeks) %>%
+  mutate(all_dates = days(between(poss_weeks, as.Date("2011-02-20"), as.Date("2011-02-27"))))
+
+#multiply hrs by 1.5
+employee_weeks_storm$storm_cost <- employee_weeks_storm$Hourly.Rate * 1.5
+
+#this would make more sense if I could change weeks to dates in employee_weeks
+#and then filter the dates that match storm dates and then group by storm dates
+employee_weeks_storm %>%
+  group_by(poss_weeks)
+```

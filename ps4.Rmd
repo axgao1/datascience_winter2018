@@ -1,0 +1,471 @@
+---
+title: "ps4"
+author: "Annie Gao"
+date: "02/05/2018"
+output:
+  html_document
+---
+
+# 1
+Worked with Di Yang and Riddhima Mishra.
+
+```{r, include = TRUE, warning = FALSE}
+library(tidyverse)
+#install.packages("ggplot2")
+library(ggplot2)
+#library(testthat)
+#install.packages("tibble")
+#library(tibble)
+#install.packages("readr")
+#library(readr)
+#install.packages("hexbin")
+#library(hexbin)
+#install.packages("tidyr")
+#library(tidyr)
+```
+
+# 2 R4DS Chapter 7 
+## 1
+```{r, include = TRUE}
+ggplot(diamonds, mapping = aes(x = price, y = carat)) + 
+  geom_point()
+
+ggplot(diamonds, mapping = aes(x = carat, y = cut)) +
+  geom_point(alpha = 1/100)
+
+ggplot(diamonds, mapping = aes(x = carat, y = cut)) +
+  geom_count()
+```
+
+Carat is the most important predictor of diamond price. When looking at the relationship, the higher the carat, the higher the price. Because cut and carat are loosely inverse related (there are more diamonds of a small carat that are ideal than good or fair), the combination of the two variables combined lead to weaker correlation in prices. Because cut and carat are both positively correlated with price, the inverse correlation between cut and carat decreases the correlation with price and carat size.
+
+## 2
+```{r, include = TRUE}
+# original in book
+diamonds %>%
+  count(color, cut) %>%
+  ggplot(mapping = aes(x = color, y = cut)) +
+    geom_tile(mapping = aes(fill = n))
+
+diamonds %>%
+  count(color, cut) %>%
+  ggplot(mapping = aes(x = color, y = n)) +
+    geom_col(aes(fill = cut))
+
+diamonds %>%
+  ggplot(mapping = aes(x = color, y = ..count..)) +
+  geom_bar(mapping = aes(fill = cut), position = "dodge")
+```
+
+I made adjustments using geom_col and geom_bar and worked with the two variables color and cut with counts. It seems that there are the most diamonds of ideal cut with color G. There are fewest J colored diamonds with cut fair.
+
+## 3
+It is slightly better to use aes(x = color, y = cut) rather than aes(x = cut, y = color) because the better way of representation should display more of the colors horizontally instead of having a longer graph that displays color vertically. Because cut has fewer unique values, it should be displayed vertically.
+
+## 4
+```{r, warning=FALSE, include=TRUE}
+diamonds %>% 
+  count(cut_width(carat, 0.5))
+
+ggplot(diamonds) +
+  geom_hex(mapping = aes(x = carat, y = price)) #detail
+
+ggplot(diamonds) +
+  geom_bin2d(mapping = aes(x = carat, y = price)) #crude
+
+ggplot(diamonds, mapping = aes(x = carat)) + 
+  geom_freqpoly(binwidth = 0.1) #informative
+
+#vs. 
+
+ggplot(diamonds, mapping = aes(x = carat)) + 
+  geom_freqpoly(binwidth = 1) #uninformative
+```
+
+When using cut_width() vs cut_number(), we should always consider the size of the binwidth as it shows different patterns or information about the data. It would be difficult to interpret a 2d visualization using bars because the bars could overlap. When visualizing a 2d distribution, it's important to use the right width or else the graph would be crude and uninformative because the x axis in relation to the y axis not zoomed in enough. 
+
+## 5
+```{r, include = TRUE}
+ggplot(diamonds, aes(x = cut_number(price, 10), y = carat)) +
+  geom_boxplot()
+# or
+ggplot(diamonds, mapping = aes(x = carat, y = price)) + 
+  geom_boxplot(mapping = aes(group = cut_number(carat, 10)))
+```
+
+In the first graph, partitioning on price would be the price values cut in groups to form 10 groups. In the second graph, partitioning on carat cuts carat size into 10 groups.
+
+## 6
+From the two graphs above, the price distribution of smaller diamonds is smaller than the price distribution of larger diamonds. There is increasing variation in price as diamonds become larger. This is not surprising as carat is an important determinant of price, but it's also likely that other factors to diamonds such as color and clarity become more important determinants in price after diamonds are past a certain carat.
+
+## 7
+```{r, include = TRUE}
+ggplot(diamonds, aes(x = cut, y = price, fill = cut_number(carat, 5))) +
+  geom_boxplot()
+```
+
+Cut and price are the x and y axes while carat is broken out into 5 groups and represented by 5 different colors for each type of cut.
+
+## 8
+```{r, include = TRUE}
+# copied from question
+ggplot(data = diamonds) +
+geom_point(mapping = aes(x = x, y = y)) + 
+  coord_cartesian(xlim = c(4, 11), ylim = c(4, 11))
+```
+
+A scatterpolot is a better display to see outliers of two values together because the scatter points allows us to see when a datapoint (or coordinate) doesnt fall on the 45 degree line as it should if it's not an outlier. Using bins, the outlying coordinates would be muted or weakened so we wouldn't be able to fully see the x and y values in relation to each other.
+
+# 3 R4DS Chapter 10
+
+## 1
+```{r, include = TRUE}
+mtcars
+mpg
+```
+
+mtcars is displayed as a dataframe because it does not include specifications of columns and rows of observations. mpg is a tibble because when printing it, the display prints a tibble with 234 rows and 11 columns. 
+
+## 2
+```{r, include = TRUE}
+d_f <- data.frame(abc = 1, xyz = "a") 
+d_f$x
+d_f[, "xyz"]
+d_f[, c("abc", "xyz")]
+
+tib <- tibble(abc = 1, xyz = "a")
+#tib$x
+tib[, "xyz"]
+tib[, c("abc", "xyz")]
+```
+
+The tibble doesn't recognize x when calling x using tib$x. Using [ ] on d_f returns a character of a level. Using [ ] on tib returns another tibble. Using the same operators on a dataframe and tibble return different types of results.
+
+##3
+```{r, include = TRUE}
+var <- "mpg"
+df <- tibble(mpg = 30, weight = 1000)
+df %>% .[var]
+df %>% .[[var]] 
+```
+
+Using a single [ ] would retrieve the column with mpg and its value of 30. Using a double [[]] would retrieve the value inside the column. Since var was assigned to mpg, if we were allowed to use mpg, we could have also written df %>% .[["mpg"]]. 
+
+##4
+Enframe() converts vectors or lists to two-column dataframes that take the form of a tibble. You want to use it when you want to convert a list or vector that's not a tibble into a tibble.
+
+##5
+If the tibble was flights, getOption("tibble.max_extra_cols") would return 5, for the number of additional variables not printed (on my screen). The option controls for how many additional column names are printed at the footer is tibble.max_extra_cols. 
+
+# 4 R4DS Chapter 11
+##1
+```{r, include = TRUE}
+#read_delim(file, delim = "|")
+```
+
+For files where fields were separated with “|”, use the read_delim() function to read in the file.
+
+##2
+The most important arguments to read_fwf() are the file name, width of the field, the separator, the position, how many rows to skip, and row and column names.
+
+##3
+```{r, include = TRUE}
+df <- "x,y\n1,'a,b'"
+read_delim(df, ",", quote = "'")
+```
+
+I specified the separator to be "," (to separate x and y, and the values 1 and 'a,b') and the quote as a single quote "'" so that 'a,b' can be read as a string into the y column. 
+
+##4
+```{r, include = TRUE}
+#1 read_csv("a,b\n1,2,3\n4,5,6") 
+#2 read_csv("a,b,c\n1,2\n1,2,3,4") 
+#3 read_csv("a,b\n\"1") 
+#4 read_csv("a,b\n1,2\na,b") 
+#5 read_csv("a;b\n1;3")
+```
+
+In #1, there will only be 2 columns with names a and b, but there will be 3 column values with 1, 2, 3 in the first row and 4, 5, 6 in the second row. 
+
+In #2, the third column under c does not have a value and the value 4 that should have been in column c was dropped.
+
+In #3, 1 is read in as a character under column a but there is no value for column b and the specifications are missing a closing ".
+
+In #4, it reads in the second appearance of a and b as values in the second row.
+
+In #5, it treats a;b as one column name and 1;3 as one value in the cell of the first row and first column, creating a tibble of 1 row and 1 column.
+
+##5
+```{r, include = TRUE, warning = FALSE}
+parse_date("01 FEBRERO 2018", "%d %B %Y", locale = locale("es"))
+```
+
+Locale can be used to set the region for which the data should be read in. It uses specifications such as the date_names, date_format, and time_format to parse date and time data in the formats specified. Date_format and time_format are used to set the formats for dates and times. Latin American countries use the format date/month/year. The parse_date function changes the date to the format specified by the locale.
+
+##6
+This was deleted from the updated problem set.
+
+##7
+```{r, include = TRUE}
+d1 <- "January 1, 2010"
+d2 <- "2015-Mar-07"
+d3 <- "06-Jun-2016"
+d4 <- c("August 19 (2015)", "July 1 (2015)") 
+d5 <- "12/30/14" # Dec 30, 2014
+t1 <- "1805"
+t2 <- "11:25:10.12 PM"
+
+# d1
+parse_date(d1, "%B %d, %Y", locale = default_locale())
+
+# d2
+parse_date(d2, "%Y-%b-%d" , locale = default_locale())
+
+# d3
+parse_date(d3, "%d-%b-%Y" , locale = default_locale())
+
+# d4
+parse_date(d4, "%B %d (%Y)" , locale = default_locale())
+
+# d5
+parse_date(d5, "%m/%d/%y" , locale = default_locale())
+
+# t1
+parse_time(t1, "%H%M", locale = default_locale())
+
+# t2
+parse_time(t2, "%I:%M:%OS %p", locale = default_locale())
+```
+
+The first section above are strings copied from problem set. The second section parses the strings into date time formats.
+
+##8
+```{r, include = TRUE}
+rating <- readr_example("massey-rating.txt")
+cat(read_lines(rating))
+
+read_fwf(rating, fwf_empty(rating, col_names = 
+                             c("UCC", "PAY", "LAZ", 
+                               "KPK", "RT", "COF", 
+                               "BIH", "DII", "ENG", 
+                               "ACU", "Rank", "Team", 
+                               "Conf")))
+```
+
+I used fwf_empty because when looking at the dataset, we see that all the columns and values are delineated by empty spaces, so it's much easier to just parse on empty space.
+
+# 5 R4DS Chapter 12
+#1
+```{r, include = TRUE}
+table1
+table2
+table3
+table4a
+table4b
+```
+
+Table1 has observations grouped by country with each year taking a different row. The remaining columns are cases and population corresponding with the specific year in that row.
+
+Table2 is also grouped by country but there are 2 types for each year (cases and population) with a count value for each type. Each type corresponds to a repeat of the country and year.
+
+Table3 has a repeat of country for each year and the corresponding rate, represented by a ratio of the number of cases to the total population in that year.
+
+Table4a shows just the number of cases in the two years, with each year being one column, without repeats of country.
+
+Table4b shows the country's population in the two years, with each year being one column. 
+
+##2
+```{r, include = TRUE}
+# table2
+cases <- table2 %>% filter(type == "cases")
+population <- table2 %>% filter(type == "population")
+rate <- (cases$count / population$count)*10000
+
+tibble(country = cases$country, 
+       year = cases$year,
+       cases = cases$count, 
+       population = population$count, 
+       rate = rate)
+
+# table4a + table4b
+table4_joined <- inner_join(table4a, table4b, by = 'country')
+new_names <- c("country", 
+               "1999_cases",
+               "2000_cases",
+               "1999_pop", 
+               "2000_pop")
+colnames(table4_joined) <- new_names
+
+table4_joined %>% 
+  mutate('1999_rate' = (table4_joined$`1999_cases`/table4_joined$`1999_pop`)*10000,
+         '2000_rate' = (table4_joined$`2000_cases`/table4_joined$`2000_pop`)*10000)
+```
+
+I think the tables 4a and 4b were easier to work with. Because of the way the two tables were laid out, with cases and population in two separate columns, an inner join made the bigger dataframe much easier to work with than table2. However, the join was easy because these were two small simple dataframes. In the case that a join would have been messy, table2 might be easier to work with. But the way table2 is laid out, with different variables organized horizontally, makes manipulation difficult.
+
+##3
+```{r, include = TRUE}
+# graph from book
+ggplot(table1, aes(year, cases)) + 
+  geom_line(aes(group = country), colour = "grey50") + 
+  geom_point(aes(colour = country))
+
+# using table2
+table2 %>% filter(type == "cases") %>% ggplot(aes(year, count)) + 
+  geom_line(aes(group = country), colour = "grey50") + 
+  geom_point(aes(colour = country))
+```
+
+I needed to filter for cases first in order to graph just the count of cases on the y axis. No other changes were made from the book's graph.
+
+##4
+```{r, include = TRUE}
+stocks <- tibble(
+  year = c(2015, 2015, 2016, 2016), 
+  half = c(1,2, 1,2),
+  return = c(1.88, 0.59, 0.92, 0.17))
+
+stocks %>%
+  spread(year, return) %>%
+  gather("year", "return", `2015`:`2016`)
+```
+
+Gather() and spread() are not perfectly symmetrical because they don't keep the variables and values the same type as they are moved to transform the dataframe. Column names don't retain the same types when the functions are used to transform the tibble. Year was originally a double in the stocks dataframe. After using spread(), 2015, which was originally a value, now is a column name as a character but contains numeric values. When gather() is applied, the column name, year, becomes a character and 2015 and 2016 become characters too.  
+
+##5
+```{r, include = TRUE}
+table4a %>%
+  gather(`1999`, `2000`, key = "year", value = "cases")
+```
+
+The code fails because gather() is reading 1999 and 2000 as column indices. We would need to add backticks to 1999 and 2000 for gather() to read it as data under the variable, year.
+
+##6
+```{r, include = TRUE}
+people <- tribble(
+  ~name,             ~key,    ~value, ~row_index,
+  #-----------------|--------|------ |-----------
+  "Phillip Woods",   "age",       45,          1,
+  "Phillip Woods",   "height",   186,          1,
+  "Phillip Woods",   "age",       50,          2,
+  "Jessica Cordero", "age",       37,          3,
+  "Jessica Cordero", "height",   156,          3  
+)
+
+people %>% spread(key = "key", value = "value")
+```
+
+Prior to adding the row_index column, the code for spread fails because there are duplicate identifiers for rows 1 and 3. Phillip Woods is repeated with the key, age, but with two different values. Adding the row index makes the duplicate entry for Phillip Woods unique so it can be spread into two different rows. Using spread on the new people tibble rearranges it so the NA of Phillip Woods' height at age 50 appears at the bottom.
+
+##7
+```{r, include = TRUE}
+preg <- tribble(
+  ~pregnant, ~male, ~female,
+  "yes", NA, 10,
+  "no", 20, 12
+)
+
+preg %>% 
+  gather(male, female, key = "sex", value = "count") %>% 
+  spread(key = "pregnant", value = "count")
+```
+
+I think the tibble, preg, as it was is already simple and easy to read. If we just used gather() without spread(), even though "male" and "female" can be observations in a "sex" variable/column, gathering them into one column makes the tibble more cluttered and more difficult to interpret because yes and no values under "pregnant" repeat. However, if we were to use spread() following gather(), we can use the "pregnant" key to spread across columns so female and male become observations. Using both methods, the variables are "sex", "count", and "pregnant".
+
+##8
+```{r, include = TRUE}
+tibble(x = c("a,b,c", "d,e,f,g", "h,i,j")) %>% 
+  separate(x, c("one", "two", "three"))
+
+tibble(x = c("a,b,c", "d,e", "f,g,i")) %>% 
+  separate(x, c("one", "two", "three"))
+
+# experiments
+tibble(x = c("a,b,c", "d,e,f,g", "h,i,j")) %>% 
+  separate(x, c("one", "two", "three"), extra = "drop")
+# g was dropped in the above without warning
+
+tibble(x = c("a,b,c", "d,e,f,g", "h,i,j")) %>% 
+  separate(x, c("one", "two", "three"), extra = "merge")
+# f and g merged into one column
+
+tibble(x = c("a,b,c", "d,e", "f,g,i")) %>% 
+  separate(x, c("one", "two", "three"), fill = "right")
+# no changes because no values to the right of the missing value
+
+tibble(x = c("a,b,c", "d,e", "f,g,i")) %>% 
+  separate(x, c("one", "two", "three"), fill = "left")
+# shifts the second row's values to the right by one column 
+# because filled with values from the left
+```
+
+Extra controls what happens when there are too many pieces in the column after separating. We can set extra to emit a warning and drop the extra pieces, drop without warning, or merge the extra pieces. Fill controls what happens when there are not enough pieces. It can emit a warning, or fill the missing values with values from the left or right.
+
+##9
+```{r, include = TRUE}
+# example from book
+tidyr::who
+
+who_tidy <- who %>%
+  gather(new_sp_m014:newrel_f65, key = "key", value = "cases", 
+         na.rm = TRUE) %>% 
+  mutate(key = stringr::str_replace(key, "newrel", "new_rel")) %>%
+  separate(key, c("new", "var", "sexage")) %>% 
+  select(-new, -iso2, -iso3) %>% 
+  separate(sexage, c("sex", "age"), sep = 1)
+
+who_nas <- who %>%
+  gather(new_sp_m014:newrel_f65, key = "key", value = "cases")
+# did not drop NAs
+
+who_nas %>% count(is.na(cases))
+who_nas %>% filter(is.na(cases))
+```
+
+Although not displayed, I first experimented with each line of the code, creating a separate dataframe for each separately. After gathering the description variables, if we do not drop NAs, there would be 405440 rows, but dropping NAs would result in 76046 rows. There are implicit missing values. There are more NAs than there are non-missing values in cases. There are 329394 rows with missing values.
+
+##10
+Missing values are represented as NAs while no cases are represented using 0s.
+
+##11
+Neglecting the mutate step would result in a warning that missing pieces are filled with NA in 2580 rows after the separate command. Because some variables are labeled "new_" (or similar) and some are "newrel" with no underscore, separating on an underscore would result in no values in the third column "sexage" where the original column has values "newrel" with no underscore.
+
+##12
+```{r, include = TRUE}
+who %>% count(n_distinct(country))
+who %>% count(n_distinct(iso2))
+who %>% count(n_distinct(iso3))
+```
+
+iso2 and iso3 are redundant with country because we see that there are 219 distinct values and 7240 observations for each of the three variables. 
+
+##13
+```{r, include = TRUE}
+who_tidy %>% 
+  group_by(country) %>% 
+  summarise(count_by_country = sum(cases)) %>% 
+  arrange(desc(count_by_country))
+
+total_year <- who_tidy %>% 
+  group_by(year) %>% 
+  summarise(count_by_year = sum(cases)) %>%
+  arrange(desc(count_by_year))
+
+print(total_year)
+
+who_tidy %>% 
+  group_by(sex) %>% 
+  summarise(count_by_sex = sum(cases)) %>%
+  arrange(desc(count_by_sex))
+
+# by country, year, sex simultaneously
+who_tidy %>% 
+  group_by(country, year, sex) %>% 
+  summarise(total = sum(cases))
+
+ggplot(total_year) + 
+  geom_line(mapping = aes(x = year, y = count_by_year))
+```
+
+By country, China, India, and South Africa are the top three countries with the most number of cases of TB. By year, 2010, 2011, and 2012 were the years with the highest number of recorded cases of TB. By sex, there are more males who have TB than there are females who have TB. From the visualization, there seems to have been a spike in TB cases between 2006 and 2007. The number dipped a year later and started rising again, reaching a peak in 2010.
+  

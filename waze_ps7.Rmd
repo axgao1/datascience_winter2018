@@ -1,0 +1,232 @@
+---
+title: "waze_ps7"
+author: "Annie Gao"
+date: "2/28/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("jsonlite")
+library(jsonlite)
+#install.packages("ggmap")
+library(ggmap)
+library(tidyverse)
+#install.packages("RMySQL")
+library(RMySQL)
+library(rstudioapi)
+library(getPass)
+```
+
+## NOTE
+I put eval = FALSE for all my chunks because withot it, the markdown will not knit.
+
+# Waze JSON exploration
+
+##1
+The data has the three main datasets called "alerts", "irregularities", and "jams." In "alerts", there are 346 alerts with information on the country, city, type, uuid, subtype, and street of the alert. In irregularities, there are x and y (longitude and latitude) coordinates among other information such as alerts and other characteristics. In jams, there is information on coordinates of lines, addresses, and speeds.
+
+##2
+```{r, cache = TRUE, eval = FALSE}
+waze <- fromJSON("https://na-georss.waze.com/rtserver/web/TGeoRSS?tk=ccp_partner&ccp_partner_name=University%20of%20Chicago&format=JSON&types=traffic,alerts,irregularities&polygon=-88.138000,42.112000;-87.569000,42.110000;-87.553000,41.511000;-88.132000,41.513000;-88.138000,42.112000;-88.138000,42.112000")
+
+alerts <- waze[[1]]
+irregularities <- waze[[3]]
+jams <- waze[[6]]
+
+coord_pts <- alerts[[12]]
+#my_map <- get_map("chicago, illinois")
+
+#ggmap(my_map, extent = "normal") +
+#  geom_point(aes(x = x, y = y), data = coord_pts, alpha = .5) +
+#  ggtitle("Alerts in Chicago at 2018-02-28 12:03")
+```
+
+```{r}
+knitr::include_graphics("unnamed-chunk-1-1.png")
+```
+
+#4 Waze SQL exploration
+
+```{r, eval = FALSE}
+require(tidyverse)
+require(dbplyr)
+require(RMySQL)
+con <- DBI::dbConnect(RMySQL::MySQL(),
+                      host = "uchicagowaze.cfykgneqoh8w.us-west-2.rds.amazonaws.com",
+                      user = "ppha30531",
+                      dbname='Waze2',
+                      port = 3306,
+                      password = .rs.askForPassword("Password")
+)
+
+DBI::dbListTables(con)
+chi_sql <- tbl(con,"chiAlerts")
+```
+
+##1
+```{r, eval = FALSE}
+chi_sql
+chi_sql[1]
+chi_sql[2]
+```
+
+The data on the SQL server are stored in characters, doubles, and integers. Country, number of thumbs up, cit, report rating and confidence, reliability, types, and other variables are given. This data are related to reported road and traffic events and the reliability of the reports. It does not give the specific location by coordinates or the time of the report.
+
+##2
+```{r, eval = FALSE}
+chi_sql %>%
+  tally()
+
+chi_sql %>%
+  select(uuid) %>%
+  group_by(uuid) %>%
+  tally()
+```
+
+There are 5380367 rows in the database. There are 553403 distinct uuid values. The server is taking a snapshot as often as I send the query to the database.
+
+##3
+```{r, eval = FALSE}
+chi_sql %>%
+  select(type) %>%
+  group_by(type) %>%
+  count()
+
+chi_sql %>%
+  select(type) %>%
+  group_by(type) %>%
+  count() %>%
+  show_query()
+
+system.time(chi_sql %>%
+              select(type) %>%
+              group_by(type) %>%
+              count())
+```
+
+There are 5 different types of alerts, but one of them is NA. As seen above, the underlying SQL queries uses SELECT 'type', COUNT, FROM the same column, from the database chiAlerts and GROUP BY type. The time to count the number of alert types varies. In this instance, I have elapsed time to be 0.018 seconds. This seems fishy because the query without the system.time function took a few seconds longer than the query with system.time.
+
+##4
+```{r, cache = TRUE, eval = FALSE}
+alert_type <- chi_sql %>%
+  select(type) %>%
+  collect()
+
+system.time(alert_type <- chi_sql %>%
+              select(type) %>%
+              collect())
+
+system.time(View(alert_type))
+
+system.time(n_distinct(alert_type$type))   
+```
+
+The time varies each time but it took 67.049 seconds the last time I downloaded just the alert type. When I tried to do this at Whole Foods, it took 542.968 seconds, or approximately 9 minutes, for just the alert types column to download to my local machine. It took 0.034 seconds to open the vector on my local machine and 0.2 seconds to count the number of distinct alert types.
+
+##5
+```{r, cache = TRUE, eval = FALSE}
+chi_sql <- chi_sql %>%
+  collect()
+
+system.time(chi_sql <- chi_sql %>%
+  collect())
+
+ncol(chi_sql)
+nrow(chi_sql)
+```
+
+It took 924.028 seconds, approximately 15 minutes, to download all of the data to my local machine. There is only one dataframe, alerts. There are 5380367 rows and 17 columns in alerts.
+
+##6
+```{r, cache = TRUE, eval = FALSE}
+type_sub <- chi_sql %>%
+  mutate(type_sub_combo = paste(chi_sql$type, chi_sql$subtype, sep = "-")) %>%
+  group_by(type, subtype, type_sub_combo) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  mutate(fcts = fct_lump(type_sub_combo, n = 10, "other"))
+
+ggplot(type_sub, aes(type_sub_combo)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+```
+
+##7
+```{r}
+alerts_tbl <- tribble(
+  ~var_name, ~var_cap, ~var_log,
+  #--------| --------- | -------
+  "country",   "country event occurred", 1,
+  "nThumbsUp",   "Number of thumbs up by users", 1,
+  "reportRating", "User rank between 1-6(6=high ranked user)", 1,
+  "confidence", "reliability and confidence score", 1,
+  "reliability", "thumbs up", 1,
+  "type", "Event type", 0,
+  "uuid", "Unique system ID", 1,
+  "roadType", "type of road", 1,
+  "magvar", "Event direction", 1,
+  "subtype", "Event sub type - depends on atof parameter", 0,
+  "street", "more exact location", 0,
+  "location", "more exact address", 0,
+  "pubMillis", "Publication date", 0,
+  "city", "place event occurred", 1,
+  "reportDescription", "description of event", 0
+)
+```
+
+```{r}
+knitr::kable(alerts_tbl)
+```
+
+##8
+```{r, error = TRUE, warning = FALSE}
+chi_sql[15]
+chi_sql[17]
+
+chi_sql %>%
+  mutate(pub_times = as.POSIXct(pubMillis/1000, 
+                                origin="1970-01-01", 
+                                tz = "CST"))
+
+Sys.timezone(chi_sql$pubMillis)
+```
+
+pubMillis is recorded as Unix time (UTC) and scrap_dt is recorded in Central Time. I added another column called pub_times that shows converted Unix time to CST.
+
+# 5 Explore specific events
+
+##1
+```{r, eval = FALSE}
+explore1 <- chi_sql %>%
+  filter(uuid == 'dcd95fd1-14d2-3f47-8981-ed39b220f99c') %>%
+  collect()
+
+as.POSIXct(1.511745e+12/1000, origin="1970-01-01", tz = "CST")
+```
+
+The alert is labeled type WEATHERHAZARD and is a pot hole on N. Kedzie Ave. It first appeared on pubMillis 1.511745e+12 or 2017-11-27 01:10:00 GMT. Confidence and reliability and nThumbsUp are low.
+
+##2
+```{r, eval = FALSE}
+explore2 <- chi_sql %>%
+  filter(uuid == 'c5a73cc6-5242-3172-be5a-cf8990d70cb2') %>%
+  collect()
+
+chi_sql %>%
+  filter(type == "JAM") %>%
+  filter(between(location_x, -87.61875 + 0.00005, 41.86272 + 0.00005) &
+           between(location_x, -87.61875 - 0.00005, 41.86272 - 0.00005))
+```
+
+The jam seems to have happened mainly on Lake Shore Dr. Perhaps it started started on Lake Shore Dr. with heavy traffic and because there was heavy traffic, the offshoots from Lake Shore Dr. also backed up due to heavy traffic volume.
+
+##3
+```{r, eval = FALSE}
+explore_random <- chi_sql %>%
+  filter(uuid == "313a5e87-fc04-36c3-942f-b4868f3a8b33")
+
+as.POSIXct(1.509074e+12/1000, origin="1970-01-01", tz = "CST")
+```
+
+In looking at uuid 313a5e87-fc04-36c3-942f-b4868f3a8b33, it seems that there were reports of road closing on Northgate Road. The reason is logged as building construction. It has a pretty high reliability rating and there are a lot of alerts logged on the same day and at similar times. This seems to be an accurate and reliable way to get the news that there is a road closing at Northgate Road on 2017-10-27 03:13:20 GMT.
